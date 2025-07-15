@@ -1,10 +1,12 @@
-import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+import re
 import numpy as np
 import joblib
+from config import CONFIG
+from sklearn.linear_model import SGDClassifier
 
 # Download required NLTK data
 nltk.download('punkt', quiet=True)
@@ -13,18 +15,14 @@ nltk.download('stopwords', quiet=True)
 nltk.download('wordnet', quiet=True)
 
 class ToxicTextScanner:
-    def __init__(self, model_path, vectorizer_path):
-        self.model_path = model_path
-        self.vectorizer_path = vectorizer_path
+    def __init__(self):
+        self.vectorizer = joblib.load(CONFIG['vectorizer_path'])
+        self.classifier = joblib.load(CONFIG['model_path'])
+        if not isinstance(self.classifier, SGDClassifier):
+            raise TypeError(f"Loaded model is {type(self.classifier).__name__}, expected SGDClassifier")
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral / Clean']
-        self.toxic_words = {
-            'hate_speech': ['hate', 'racist', 'bigot', 'nazi'],
-            'offensive': ['damn', 'ass', 'bitch', 'fuck']
-        }
-        self.classifier = None
-        self.vectorizer = None
 
     def preprocess_text(self, text):
         text = text.lower()
@@ -35,36 +33,23 @@ class ToxicTextScanner:
         tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
         return ' '.join(tokens)
 
-    def load_model(self):
-        try:
-            self.classifier = joblib.load(self.model_path)
-            self.vectorizer = joblib.load(self.vectorizer_path)
-            print(f"Loaded model from {self.model_path} and vectorizer from {self.vectorizer_path}")
-            return True
-        except FileNotFoundError:
-            return False
-
-    def classify(self, text):
+    def classify_text(self, text):
         processed_text = self.preprocess_text(text)
         X = self.vectorizer.transform([processed_text])
+        prediction = self.classifier.predict(X)[0]
         probabilities = self.classifier.predict_proba(X)[0]
-        prediction = np.argmax(probabilities)
-        confidence = probabilities[prediction]
-        explanation = self._generate_explanation(text, prediction)
+        confidence = float(np.max(probabilities))
+        
+        # Get feature names and their coefficients for explanation
+        feature_names = self.vectorizer.get_feature_names_out()
+        coef = self.classifier.coef_[prediction]
+        top_features = np.argsort(coef)[-3:][::-1]
+        influential_terms = [feature_names[i] for i in top_features]
+        
+        explanation = f"Flagged for {self.class_names[prediction].lower()} based on terms: {', '.join(influential_terms)}"
+        
         return {
             'label': self.class_names[prediction],
-            'confidence': float(confidence),
+            'confidence': confidence,
             'explanation': explanation
         }
-
-    def _generate_explanation(self, text, prediction):
-        text = text.lower()
-        if prediction == 0:
-            for word in self.toxic_words['hate_speech']:
-                if word in text:
-                    return f"Flagged for potential hate speech containing term: {word}"
-        elif prediction == 1:
-            for word in self.toxic_words['offensive']:
-                if word in text:
-                    return f"Flagged for offensive language containing term: {word}"
-        return "Classification based on text patterns and learned features"
