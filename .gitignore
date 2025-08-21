@@ -1,0 +1,24 @@
+# Python cache & build
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Envs
+.venv/
+venv/
+inference/venv/
+
+# Tools/cache
+.mypy_cache/
+.pytest_cache/
+
+# Editors/OS
+.vscode/
+.idea/
+.DS_Store
