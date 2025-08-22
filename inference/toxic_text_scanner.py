@@ -8,11 +8,14 @@ import joblib
 from config import CONFIG
 from sklearn.linear_model import SGDClassifier
 
+# Set NLTK data path
+nltk.data.path.append('/home/branch/nltk_data')
+
 # Download required NLTK data
-nltk.download('punkt', quiet=True)
-nltk.download('punkt_tab', quiet=True)
-nltk.download('stopwords', quiet=True)
-nltk.download('wordnet', quiet=True)
+nltk.download('punkt', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('punkt_tab', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('stopwords', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextScanner:
     def __init__(self):
@@ -22,10 +25,10 @@ class ToxicTextScanner:
             raise TypeError(f"Loaded model is {type(self.classifier).__name__}, expected SGDClassifier")
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
-        self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral / Clean']
+        self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
 
     def preprocess_text(self, text):
-        text = text.lower()
+        text = str(text).lower()
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
         text = re.sub(r'[^a-zA-Z\s]', '', text)

@@ -1,14 +1,30 @@
 from flask import Flask, request, jsonify
 from toxic_text_scanner import ToxicTextScanner
+import os
 
 app = Flask(__name__)
 
 # Initialize the scanner
-scanner = ToxicTextScanner()
+try:
+    scanner = ToxicTextScanner()
+except FileNotFoundError:
+    print("Model or vectorizer not found. Ensure model.joblib and vectorizer.joblib exist.")
+    raise
+except Exception as e:
+    print(f"Failed to initialize scanner: {e}")
+    raise
+
+# Optional API key (uncomment to enable)
+# API_KEY = "y26717caa7fd6549c33e0811f1e6ded6f40c167a7026ac0782e363ab461ee0584"
 
 @app.route('/classify', methods=['POST'])
 def classify_text():
     try:
+        # Optional API key check
+        # api_key = request.headers.get('X-API-Key')
+        # if not api_key or api_key != API_KEY:
+        #     return jsonify({'error': 'Invalid or missing API key'}), 401
+        
         data = request.get_json()
         text = data.get('text', '')
         if not text:
@@ -25,4 +41,5 @@ def classify_text():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    from config import CONFIG
+    app.run(host='0.0.0.0', port=CONFIG['port'], debug=CONFIG['debug'])
