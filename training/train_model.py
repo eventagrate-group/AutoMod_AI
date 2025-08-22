@@ -34,7 +34,7 @@ class ToxicTextTrainer:
         self.vectorizer_path = CONFIG['vectorizer_path']
 
     def preprocess_text(self, text):
-        text = text.lower()
+        text = str(text).lower()
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
         text = re.sub(r'[^a-zA-Z\s]', '', text)
@@ -43,14 +43,18 @@ class ToxicTextTrainer:
         return ' '.join(tokens)
 
     def load_model_and_vectorizer(self):
-        if os.path.exists(self.model_path) and os.path.exists(self.vectorizer_path):
-            self.classifier = joblib.load(self.model_path)
-            self.vectorizer = joblib.load(self.vectorizer_path)
-            if not isinstance(self.classifier, SGDClassifier):
-                raise TypeError(f"Loaded model is {type(self.classifier).__name__}, expected SGDClassifier")
-            print(f"Loaded model from {self.model_path} and vectorizer from {self.vectorizer_path}")
-            return True
-        return False
+        try:
+            if os.path.exists(self.model_path) and os.path.exists(self.vectorizer_path):
+                self.classifier = joblib.load(self.model_path)
+                self.vectorizer = joblib.load(self.vectorizer_path)
+                if not isinstance(self.classifier, SGDClassifier):
+                    raise TypeError(f"Loaded model is {type(self.classifier).__name__}, expected SGDClassifier")
+                print(f"Loaded model from {self.model_path} and vectorizer from {self.vectorizer_path}")
+                return True
+            return False
+        except Exception as e:
+            print(f"Failed to load model or vectorizer: {e}. Falling back to initial training.")
+            return False
 
     def train(self, csv_path, incremental=False):
         print(f"Loading dataset from {csv_path}...")
@@ -89,7 +93,7 @@ class ToxicTextTrainer:
         
         # Preprocess text with progress bar
         print("Preprocessing text...")
-        df['processed_tweet'] = [self.preprocess_text(str(text)) for text in tqdm(df['tweet'], desc="Preprocessing")]
+        df['processed_tweet'] = [self.preprocess_text(text) for text in tqdm(df['tweet'], desc="Preprocessing")]
         
         if incremental:
             print("Performing incremental training...")
@@ -102,6 +106,12 @@ class ToxicTextTrainer:
                 X_chunk = X[i:end]
                 y_chunk = y[i:end]
                 self.classifier.partial_fit(X_chunk, y_chunk, classes=[0, 1, 2])
+            # Evaluate after incremental training
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+            print("Evaluating model...")
+            y_pred = self.classifier.predict(X_test)
+            print("Model Performance:")
+            print(classification_report(y_test, y_pred, target_names=self.class_names))
         else:
             print("Performing initial training...")
             X = self.vectorizer.fit_transform(df['processed_tweet'])
@@ -123,14 +133,10 @@ class ToxicTextTrainer:
 if __name__ == "__main__":
     trainer = ToxicTextTrainer()
     # Check if model and vectorizer exist for incremental learning
-    if trainer.load_model_and_vectorizer():
+    new_data_path = CONFIG.get('new_data_path', '/home/branch/Downloads/synthetic_toxic_tweets_new.csv')
+    if trainer.load_model_and_vectorizer() and os.path.exists(new_data_path):
         # Use new data for incremental learning
-        new_data_path = CONFIG.get('new_data_path', '/home/branch/Downloads/synthetic_toxic_tweets_new1.csv')
-        if os.path.exists(new_data_path):
-            trainer.train(new_data_path, incremental=True)
-        else:
-            print(f"New data file {new_data_path} not found. Performing full training...")
-            trainer.train(CONFIG['dataset_path'], incremental=False)
+        trainer.train(new_data_path, incremental=True)
     else:
-        print("No existing model found. Performing full training...")
-        trainer.train(CONFIG['dataset_path'], incremental=False)
+        print(f"Performing initial training with {new_data_path} due to model load failure or missing model...")
+        trainer.train(new_data_path, incremental=False)
