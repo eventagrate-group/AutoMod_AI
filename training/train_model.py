@@ -25,8 +25,10 @@ nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextTrainer:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=5000)
-        self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-3, random_state=42)
+        # Increased max_features and added ngram_range
+        self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2)
+        # Adjusted alpha for better regularization
+        self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-4, alpha=0.0001, random_state=42)
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
