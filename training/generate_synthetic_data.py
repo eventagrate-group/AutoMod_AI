@@ -7,18 +7,27 @@ import re
 from tqdm import tqdm
 import os
 import torch
+import warnings
+
+# Suppress FutureWarning for clean_up_tokenization_spaces
+warnings.filterwarnings("ignore", category=FutureWarning, module="transformers.tokenization_utils_base")
+
+# Set NLTK data path
+nltk.data.path.append('/home/branch/nltk_data')
+
+# Download NLTK data if not already present
+if not os.path.exists('/home/branch/nltk_data'):
+    nltk.download(['names', 'words', 'punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir='/home/branch/nltk_data')
+
+# Load names for randomization
+all_names = names.words('male.txt') + names.words('female.txt')
 
 # Check for GPU availability
 device = 0 if torch.cuda.is_available() else -1
 print(f"Using device: {'GPU' if device == 0 else 'CPU'}")
 
-# Download NLTK data if not already present
-nltk_data_path = '/home/branch/nltk_data'
-if not os.path.exists(nltk_data_path):
-    nltk.download(['names', 'words', 'punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir=nltk_data_path)
-
 # Initialize GPT-2 for text generation
-generator = pipeline('text-generation', model='gpt2', device=device)
+generator = pipeline('text-generation', model='gpt2', device=device, clean_up_tokenization_spaces=False)
 
 # Expanded templates for broader variation
 hate_speech_templates = [
@@ -32,7 +41,12 @@ hate_speech_templates = [
     "{name} is a vile piece of trash and deserves pain.",
     "I want to see {name} humiliated and broken.",
     "People like {name} are the problem and should be wiped out.",
-    # Add 90 more similar templates with variations in language, reasons (e.g., "lies," "betrayal," "incompetence"), and groups (e.g., "politicians," "celebrities," "neighbors")
+    "I despise {name} and their {reason}.",
+    "{name} is a filthy {insult}, ban them!",
+    "All {group} are terrible, especially {name}.",
+    "I want to ruin {name}'s life for {reason}.",
+    "{name} is a pathetic {insult}, get lost!",
+    # Add more templates for diversity
 ]
 
 offensive_templates = [
@@ -46,7 +60,12 @@ offensive_templates = [
     "Damn you, {name}, you're an {insult}.",
     "{name}'s ideas are trash, what an {insult}.",
     "Screw {name}, they're a complete {insult}.",
-    # Add 90 more similar templates with variations in profanity, insults (e.g., "moron," "asshole," "dumbass"), and contexts (e.g., "ideas," "behavior," "appearance")
+    "You're a {insult}, {name}, stop talking!",
+    "{name} is a useless {insult}, give up.",
+    "Get lost, {name}, you {insult}!",
+    "{name}'s work is garbage, total {insult}.",
+    "What a {insult}, {name}, just quit.",
+    # Add more templates for diversity
 ]
 
 neutral_templates = [
@@ -60,13 +79,18 @@ neutral_templates = [
     "{name} is a talented person.",
     "I support {name}'s efforts.",
     "The weather is nice, {name}.",
-    # Add 90 more similar templates with variations in greetings, activities (e.g., "coffee," "walk," "meeting"), and positive/neutral phrases (e.g., "interesting," "fun," "agree")
+    "Had a good day, {name}?",
+    "{name}, your project looks cool.",
+    "Let's visit the {place} with {name}.",
+    "I enjoy {name}'s company.",
+    "{name} shared a great idea today.",
+    # Add more templates for diversity
 ]
 
 # Expanded lists for randomization
-insults = ['idiot', 'loser', 'jerk', 'fool', 'moron', 'asshole', 'dumbass', 'bastard', 'prick', 'scumbag', 'trash', 'failure', 'disgrace', 'creep', 'pig', 'monster', 'degenerate', 'fraud', 'liar', 'cheater']
+insults = ['idiid', 'loser', 'jerk', 'fool', 'moron', 'asshole', 'dumbass', 'bastard', 'prick', 'scumbag', 'trash', 'failure', 'disgrace', 'creep', 'pig', 'monster', 'degenerate', 'fraud', 'liar', 'cheater']
 reasons = ['lies', 'betrayal', 'incompetence', 'stupidity', 'arrogance', 'greed', 'laziness', 'rudeness', 'dishonesty', 'hypocrisy', 'being annoying', 'being selfish', 'being mean', 'being ugly', 'being boring']
-groups = ['politicians', 'celebrities', 'neighbors', 'coworkers', 'friends', 'family', 'strangers', 'activists', 'journalists', 'teachers', 'doctors', 'artists', 'scientists', 'players', 'leaders', 'workers', 'students', 'reporters', 'managers', 'critics', 'fans', 'singers', 'actors', 'writers', 'coaches', 'developers', 'gamers', 'users', 'visitors', 'buyers', 'sellers', 'customers', 'drivers', 'shoppers', 'readers', 'viewers', 'listeners', 'subscribers', 'members', 'owners', 'authors', 'directors', 'scientists', 'neighbors', 'classmates', 'colleagues', 'acquaintances', 'relatives', 'kids', 'people']
+groups = ['politicians', 'celebrities', 'neighbors', 'coworkers', 'friends', 'family', 'strangers', 'activists', 'journalists', 'teachers', 'doctors', 'artists', 'scientists', 'players', 'leaders', 'workers', 'students', 'reporters', 'managers', 'critics', 'fans', 'singers', 'actors', 'writers', 'coaches', 'developers', 'gamers', 'users', 'visitors', 'buyers', 'sellers', 'customers', 'drivers', 'shoppers', 'readers', 'viewers', 'listeners', 'subscribers', 'members', 'owners', 'authors', 'directors', 'neighbors', 'classmates', 'colleagues', 'acquaintances', 'relatives', 'kids', 'people']
 places = ['park', 'mall', 'cafe', 'beach', 'office', 'school', 'gym', 'library', 'restaurant', 'theater', 'concert', 'party', 'meeting', 'event', 'conference', 'store', 'hospital', 'airport', 'station', 'hotel', 'home', 'street', 'city', 'country', 'world', 'online', 'social media', 'forum', 'group', 'club']
 
 def generate_rule_based_tweets(label, num_samples):
