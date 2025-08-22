@@ -14,11 +14,14 @@ import os
 from config import CONFIG
 from tqdm import tqdm
 
+# Set NLTK data path
+nltk.data.path.append('/home/branch/nltk_data')
+
 # Download required NLTK data
-nltk.download('punkt', quiet=True)
-nltk.download('punkt_tab', quiet=True)
-nltk.download('stopwords', quiet=True)
-nltk.download('wordnet', quiet=True)
+nltk.download('punkt', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('punkt_tab', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('stopwords', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextTrainer:
     def __init__(self):
@@ -26,7 +29,7 @@ class ToxicTextTrainer:
         self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-3, random_state=42)
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
-        self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral / Clean']
+        self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         self.model_path = CONFIG['model_path']
         self.vectorizer_path = CONFIG['vectorizer_path']
 
@@ -86,7 +89,7 @@ class ToxicTextTrainer:
         
         # Preprocess text with progress bar
         print("Preprocessing text...")
-        df['processed_tweet'] = [self.preprocess_text(text) for text in tqdm(df['tweet'], desc="Preprocessing")]
+        df['processed_tweet'] = [self.preprocess_text(str(text)) for text in tqdm(df['tweet'], desc="Preprocessing")]
         
         if incremental:
             print("Performing incremental training...")
@@ -122,7 +125,7 @@ if __name__ == "__main__":
     # Check if model and vectorizer exist for incremental learning
     if trainer.load_model_and_vectorizer():
         # Use new data for incremental learning
-        new_data_path = CONFIG.get('new_data_path', 'new_data.csv')
+        new_data_path = CONFIG.get('new_data_path', '/home/branch/Downloads/synthetic_toxic_tweets_new1.csv')
         if os.path.exists(new_data_path):
             trainer.train(new_data_path, incremental=True)
         else:
