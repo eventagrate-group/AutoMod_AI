@@ -25,10 +25,9 @@ nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextTrainer:
     def __init__(self):
-        # Increased max_features and added ngram_range
-        self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2)
-        # Adjusted alpha for better regularization
-        self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-4, alpha=0.0001, random_state=42)
+        self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2, max_df=0.95)
+        self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-4, alpha=0.0001, 
+                                       class_weight='balanced', random_state=42)
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
@@ -101,7 +100,6 @@ class ToxicTextTrainer:
             print("Performing incremental training...")
             X = self.vectorizer.transform(df['processed_tweet'])
             y = df['class']
-            # Process in chunks for progress bar
             chunk_size = 10000
             for i in tqdm(range(0, len(df), chunk_size), desc="Incremental Training"):
                 end = min(i + chunk_size, len(df))
@@ -134,11 +132,9 @@ class ToxicTextTrainer:
 
 if __name__ == "__main__":
     trainer = ToxicTextTrainer()
-    # Check if model and vectorizer exist for incremental learning
     new_data_path = CONFIG.get('new_data_path', '/home/branch/Downloads/synthetic_toxic_tweets_new.csv')
     if trainer.load_model_and_vectorizer() and os.path.exists(new_data_path):
-        # Use new data for incremental learning
         trainer.train(new_data_path, incremental=True)
     else:
-        print(f"Performing initial training with {new_data_path} due to model load failure or missing model...")
+        print(f"Performing initial training with {new_data_path}...")
         trainer.train(new_data_path, incremental=False)
