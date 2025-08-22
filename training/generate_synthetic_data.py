@@ -1,7 +1,7 @@
 import pandas as pd
 import random
 import nltk
-from nltk.corpus import names, words
+from nltk.corpus import names, words, stopwords
 from transformers import pipeline
 import re
 from tqdm import tqdm
@@ -20,43 +20,69 @@ if not os.path.exists(nltk_data_path):
 # Initialize GPT-2 for text generation
 generator = pipeline('text-generation', model='gpt2', device=device)
 
-# Templates for rule-based generation
+# Expanded templates for broader variation
 hate_speech_templates = [
-    "I want to kill {name}.",
+    "I want to kill {name} because {reason}.",
     "I hate {name} so much, they should die!",
-    "{name}, you're a worthless {insult}!",
-    "I'm gonna destroy {name} for good."
-]
-offensive_templates = [
-    "Shut up, you {insult}!",
-    "You're such a {insult}, {name}!",
-    "Go away, you damn {insult}!",
-    "{name}, you're an idiot {insult}."
-]
-neutral_templates = [
-    "Hey {name}, how's it going?",
-    "I saw {name} at the {place} today.",
-    "Great to meet you, {name}!",
-    "Let's grab coffee, {name}."
+    "{name}, you're a worthless {insult} and deserve to suffer.",
+    "I'm gonna destroy {name} for {reason}.",
+    "{name} is a disgusting {insult} and should be eradicated.",
+    "All {group} like {name} are scum and should be eliminated.",
+    "I wish {name} would rot in hell for {reason}.",
+    "{name} is a vile piece of trash and deserves pain.",
+    "I want to see {name} humiliated and broken.",
+    "People like {name} are the problem and should be wiped out.",
+    # Add 90 more similar templates with variations in language, reasons (e.g., "lies," "betrayal," "incompetence"), and groups (e.g., "politicians," "celebrities," "neighbors")
 ]
 
-# Lists for randomization
-insults = ['idiot', 'loser', 'jerk', 'fool']
-places = ['park', 'mall', 'cafe', 'beach']
-male_names = names.words('male.txt')
-female_names = names.words('female.txt')
-all_names = male_names + female_names
+offensive_templates = [
+    "Shut up, you {insult} {name}!",
+    "You're such a {insult}, {name}, go away.",
+    "Go to hell, you damn {insult}!",
+    "{name}, you're a total {insult}, what a joke.",
+    "{name} is a freaking {insult}, can't believe it.",
+    "Fuck off, {name}, you're a {insult}.",
+    "{name} is a shitty {insult}, no doubt.",
+    "Damn you, {name}, you're an {insult}.",
+    "{name}'s ideas are trash, what an {insult}.",
+    "Screw {name}, they're a complete {insult}.",
+    # Add 90 more similar templates with variations in profanity, insults (e.g., "moron," "asshole," "dumbass"), and contexts (e.g., "ideas," "behavior," "appearance")
+]
+
+neutral_templates = [
+    "Hey {name}, how's it going?",
+    "I saw {name} at the {place} today, nice chat.",
+    "Great to meet {name}, let's connect again.",
+    "Let's grab coffee with {name} soon.",
+    "{name} has interesting ideas, I agree.",
+    "I like {name}'s work, it's inspiring.",
+    "Discussing topics with {name} is fun.",
+    "{name} is a talented person.",
+    "I support {name}'s efforts.",
+    "The weather is nice, {name}.",
+    # Add 90 more similar templates with variations in greetings, activities (e.g., "coffee," "walk," "meeting"), and positive/neutral phrases (e.g., "interesting," "fun," "agree")
+]
+
+# Expanded lists for randomization
+insults = ['idiot', 'loser', 'jerk', 'fool', 'moron', 'asshole', 'dumbass', 'bastard', 'prick', 'scumbag', 'trash', 'failure', 'disgrace', 'creep', 'pig', 'monster', 'degenerate', 'fraud', 'liar', 'cheater']
+reasons = ['lies', 'betrayal', 'incompetence', 'stupidity', 'arrogance', 'greed', 'laziness', 'rudeness', 'dishonesty', 'hypocrisy', 'being annoying', 'being selfish', 'being mean', 'being ugly', 'being boring']
+groups = ['politicians', 'celebrities', 'neighbors', 'coworkers', 'friends', 'family', 'strangers', 'activists', 'journalists', 'teachers', 'doctors', 'artists', 'scientists', 'players', 'leaders', 'workers', 'students', 'reporters', 'managers', 'critics', 'fans', 'singers', 'actors', 'writers', 'coaches', 'developers', 'gamers', 'users', 'visitors', 'buyers', 'sellers', 'customers', 'drivers', 'shoppers', 'readers', 'viewers', 'listeners', 'subscribers', 'members', 'owners', 'authors', 'directors', 'scientists', 'neighbors', 'classmates', 'colleagues', 'acquaintances', 'relatives', 'kids', 'people']
+places = ['park', 'mall', 'cafe', 'beach', 'office', 'school', 'gym', 'library', 'restaurant', 'theater', 'concert', 'party', 'meeting', 'event', 'conference', 'store', 'hospital', 'airport', 'station', 'hotel', 'home', 'street', 'city', 'country', 'world', 'online', 'social media', 'forum', 'group', 'club']
 
 def generate_rule_based_tweets(label, num_samples):
     tweets = []
     for _ in range(num_samples):
         name = random.choice(all_names)
+        insult = random.choice(insults)
+        reason = random.choice(reasons)
+        group = random.choice(groups)
+        place = random.choice(places)
         if label == 'Hate Speech':
-            tweet = random.choice(hate_speech_templates).format(name=name, insult=random.choice(insults))
+            tweet = random.choice(hate_speech_templates).format(name=name, insult=insult, reason=reason, group=group)
         elif label == 'Offensive Language':
-            tweet = random.choice(offensive_templates).format(name=name, insult=random.choice(insults))
+            tweet = random.choice(offensive_templates).format(name=name, insult=insult, reason=reason, group=group)
         else:  # Neutral
-            tweet = random.choice(neutral_templates).format(name=name, place=random.choice(places))
+            tweet = random.choice(neutral_templates).format(name=name, place=place, reason=reason, group=group)
         tweets.append(tweet[:280])
     return tweets
 
@@ -68,7 +94,7 @@ def generate_gpt2_tweets(prompt, num_samples, max_length=50):
         tweets.append(output)
     return tweets
 
-def create_synthetic_dataset(total_samples=100000):
+def create_synthetic_dataset(total_samples=300000):
     samples_per_class = total_samples // 3
     
     # Rule-based tweets (50% of data)
@@ -120,8 +146,8 @@ def create_synthetic_dataset(total_samples=100000):
     return df
 
 def main():
-    output_path = '/home/branch/Downloads/synthetic_toxic_tweets_new.csv'
-    df = create_synthetic_dataset(total_samples=100000)
+    output_path = '/home/branch/Downloads/new_training_data.csv'
+    df = create_synthetic_dataset(total_samples=300000)
     df.to_csv(output_path, index=False)
     print(f"Synthetic dataset saved to {output_path}")
     print(df['class'].value_counts())
