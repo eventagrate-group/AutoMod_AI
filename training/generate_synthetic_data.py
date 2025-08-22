@@ -8,7 +8,7 @@ from tqdm import tqdm
 import os
 
 # Download NLTK data if not already present
-nltk_data_path = '/home/ubuntu/nltk_data'
+nltk_data_path = '/home/branch/nltk_data'
 if not os.path.exists(nltk_data_path):
     nltk.download(['names', 'words', 'punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir=nltk_data_path)
 
@@ -116,7 +116,7 @@ def create_synthetic_dataset(total_samples=100000):
     return df
 
 def main():
-    output_path = '/home/ubuntu/Downloads/synthetic_toxic_tweets_new.csv'
+    output_path = '/home/branch/Downloads/synthetic_toxic_tweets_new.csv'
     df = create_synthetic_dataset(total_samples=100000)
     df.to_csv(output_path, index=False)
     print(f"Synthetic dataset saved to {output_path}")
