@@ -6,6 +6,11 @@ from transformers import pipeline
 import re
 from tqdm import tqdm
 import os
+import torch
+
+# Check for GPU availability
+device = 0 if torch.cuda.is_available() else -1
+print(f"Using device: {'GPU' if device == 0 else 'CPU'}")
 
 # Download NLTK data if not already present
 nltk_data_path = '/home/branch/nltk_data'
@@ -13,7 +18,7 @@ if not os.path.exists(nltk_data_path):
     nltk.download(['names', 'words', 'punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir=nltk_data_path)
 
 # Initialize GPT-2 for text generation
-generator = pipeline('text-generation', model='gpt2', device=-1)  # CPU, use device=0 for GPU
+generator = pipeline('text-generation', model='gpt2', device=device)
 
 # Templates for rule-based generation
 hate_speech_templates = [
@@ -52,14 +57,13 @@ def generate_rule_based_tweets(label, num_samples):
             tweet = random.choice(offensive_templates).format(name=name, insult=random.choice(insults))
         else:  # Neutral
             tweet = random.choice(neutral_templates).format(name=name, place=random.choice(places))
-        tweets.append(tweet[:280])  # Ensure ≤280 characters
+        tweets.append(tweet[:280])
     return tweets
 
 def generate_gpt2_tweets(prompt, num_samples, max_length=50):
     tweets = []
     for _ in tqdm(range(num_samples), desc="Generating GPT-2 tweets"):
         output = generator(prompt, max_length=max_length, num_return_sequences=1, truncation=True)[0]['generated_text']
-        # Clean and limit to 280 characters
         output = re.sub(r'\s+', ' ', output).strip()[:280]
         tweets.append(output)
     return tweets
@@ -112,7 +116,7 @@ def create_synthetic_dataset(total_samples=100000):
         })
     
     df = pd.DataFrame(data)
-    df = df.sample(frac=1).reset_index(drop=True)  # Shuffle
+    df = df.sample(frac=1).reset_index(drop=True)
     return df
 
 def main():

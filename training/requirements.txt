@@ -5,4 +5,4 @@ numpy==1.26.4
 joblib==1.4.2
 tqdm==4.66.5
 transformers==4.44.2
-torch==2.2.2
+torch==2.3.0+cu121
