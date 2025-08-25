@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  toxictext-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: toxictext-scanner-inference
+    container_name: toxictext-scanner
+    ports:
+      - "5001:5001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - /home/branch/projects/toxictext-scanner/inference:/app
