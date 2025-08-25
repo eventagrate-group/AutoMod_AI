@@ -28,6 +28,9 @@ class SyntheticDataGenerator:
         self.activities = ['speech', 'post', 'interview', 'performance', 'tweet']
         self.samples_per_class = 100000
         self.rule_based_ratio = 0.8
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
+        print(f"Using device: {self.device}")
 
     def generate_rule_based_tweets(self, class_type, num_samples):
         tweets = []
@@ -75,11 +78,9 @@ class SyntheticDataGenerator:
     def generate_gpt2_tweets(self, prompt, num_samples):
         tweets = []
         self.model.eval()
-        device = torch.device('cpu')  # Use CPU for consistency
-        self.model.to(device)
         
         for _ in tqdm(range(num_samples), desc=f"Generating {prompt.split()[0]} tweets"):
-            inputs = self.tokenizer.encode(prompt, return_tensors='pt').to(device)
+            inputs = self.tokenizer.encode(prompt, return_tensors='pt').to(self.device)
             outputs = self.model.generate(
                 inputs,
                 max_length=50,
