@@ -38,35 +38,33 @@ class ToxicTextVerifier:
         return ' '.join(tokens)
 
     def verify(self):
-        # Load data from three files
-        data_paths = [
-            '/home/branch/Downloads/hate_speech_verify.csv',
-            '/home/branch/Downloads/offensive_language_verify.csv',
-            '/home/branch/Downloads/neutral_verify.csv'
+        # Define validation files and their corresponding labels
+        data_files = [
+            ('/home/branch/Downloads/hate_speech_verify.csv', 'Hate Speech', 0),
+            ('/home/branch/Downloads/offensive_language_verify.csv', 'Offensive Language', 1),
+            ('/home/branch/Downloads/neutral_verify.csv', 'Neutral', 2)
         ]
         dfs = []
-        for path in data_paths:
-            print(f"Loading validation data from {path}...")
-            df = pd.read_csv(path)
+        
+        for file_path, class_name, class_id in data_files:
+            print(f"Loading validation data from {file_path}...")
+            # Read file assuming it contains only tweets (one per line, no header)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                tweets = [line.strip() for line in f if line.strip()]
+            
+            # Create DataFrame with required columns
+            df = pd.DataFrame({
+                'tweet': tweets,
+                'class': [class_name] * len(tweets),
+                'count': [1] * len(tweets),
+                'hate_speech_count': [1 if class_name == 'Hate Speech' else 0] * len(tweets),
+                'offensive_language_count': [1 if class_name == 'Offensive Language' else 0] * len(tweets),
+                'neither_count': [1 if class_name == 'Neutral' else 0] * len(tweets)
+            })
             dfs.append(df)
         
         # Combine data
         df = pd.concat(dfs, ignore_index=True)
-        
-        # Identify label column
-        possible_label_columns = ['class', 'label', 'sentiment', 'category']
-        label_column = None
-        for col in possible_label_columns:
-            if col in df.columns:
-                label_column = col
-                break
-        if label_column is None:
-            raise ValueError(f"No label column found in validation data. Expected one of: {possible_label_columns}")
-        
-        # Rename label column to 'class'
-        if label_column != 'class':
-            print(f"Renaming label column '{label_column}' to 'class'...")
-            df = df.rename(columns={label_column: 'class'})
         
         # Map string labels to numeric
         label_map = {
@@ -77,12 +75,8 @@ class ToxicTextVerifier:
             'offensive': 1,
             'neither': 2
         }
-        if df['class'].dtype == 'object':
-            print("Mapping string labels to numeric values...")
-            missing_labels = df['class'][~df['class'].isin(label_map.keys())].unique()
-            if len(missing_labels) > 0:
-                raise ValueError(f"Unknown string labels found: {missing_labels}")
-            df['class'] = df['class'].map(label_map)
+        print("Mapping string labels to numeric values...")
+        df['class'] = df['class'].map(label_map)
         
         # Preprocess text
         print("Preprocessing text...")
