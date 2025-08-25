@@ -22,3 +22,7 @@ inference/venv/
 .vscode/
 .idea/
 .DS_Store
+
+# Ignore NLTK data and stray ~ dirs
+**/nltk_data/
+**/~/
