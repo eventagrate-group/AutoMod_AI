@@ -1,6 +1,6 @@
 # ToxicTextScanner
 
-ToxicTextScanner is a machine learning-based REST API for classifying short-form text (e.g., tweets) as `Hate Speech`, `Offensive Language`, or `Neutral / Clean`. It uses a `SGDClassifier` with TF-IDF features (`max_features=10000`, L2 regularization `alpha=0.0001`) for robust classification, supports incremental learning for model updates, and provides a Flask API for real-time inference.
+ToxicTextScanner is a machine learning-based REST API for classifying short-form text (e.g., tweets) as `Hate Speech`, `Offensive Language`, or `Neutral / Clean`. It uses a `SGDClassifier` with TF-IDF features (`max_features=10000`, L2 regularization `alpha=0.0001`) for robust classification, supports incremental learning for model updates, and provides a Flask API for real-time inference. The system is designed to run locally to optimize cost, control, and data privacy. By training and deploying locally, you avoid recurring expenses from public payable APIs, maintain full control over model customization and updates, and ensure sensitive text data remains secure on your infrastructure. Local development also allows for faster iteration, tailored preprocessing, and integration with existing systems without reliance on external services.
 
 ## Project Structure
 ```
@@ -29,7 +29,8 @@ toxictext-scanner/
 - **Docker Support**: Containerized setup for the inference API.
 
 ## Prerequisites
-- Python 3.8+
+- Ubuntu 24.04.3 LTS
+- Python 3.12
 - Docker and Docker Compose (for inference containerization)
 - Git
 - Sufficient memory (8–16 GB RAM for training 1M rows)
@@ -42,150 +43,189 @@ toxictext-scanner/
    cd toxictext-scanner
    ```
 
-2. **Install Dependencies**:
+2. **Resolve Git Conflicts (if any)**:
+   ```bash
+   git status
+   ```
+   - Edit conflicted files to resolve markers (`<<<<<<<`, `=======`, `>>>>>>>`).
+   - Mark resolved and commit:
+     ```bash
+     git add <file>
+     git commit
+     git push origin main
+     ```
+   - If needed, reset to main:
+     ```bash
+     git fetch origin
+     git reset --hard origin/main
+     ```
+
+3. **Install Dependencies**:
    - For training:
      ```bash
      cd training
+     python3.12 -m venv venv
+     source venv/bin/activate
+     pip install --upgrade pip
      pip install -r requirements.txt
+     pip install torch==2.3.0
      ```
-     Required: `pandas`, `scikit-learn`, `nltk`, `numpy`, `joblib`, `tqdm`
+     Ensure `training/requirements.txt` contains:
+     ```
+     pandas==2.2.3
+     scikit-learn==1.3.0
+     nltk==3.9.1
+     numpy==1.26.4
+     joblib==1.4.2
+     tqdm==4.66.5
+     transformers==4.44.2
+     ```
    - For inference:
      ```bash
      cd inference
+     source ../training/venv/bin/activate
      pip install -r requirements.txt
      ```
-     Required: `flask`, `nltk`, `numpy`, `joblib`, `gunicorn`, `flask-limiter`
-
-3. **Download NLTK Data**:
-   - Run the following in a Python environment to download data needed for text preprocessing (tokenization, lemmatization) in `train_model.py`. This is required locally for training but is handled automatically in the Docker container for inference:
-     ```python
-     import nltk
-     nltk.download(['punkt', 'punkt_tab', 'stopwords', 'wordnet'])
+     Ensure `inference/requirements.txt` contains:
      ```
-     Example: Save as `download_nltk.py` and run `python3 download_nltk.py`, or execute in a Python interpreter (`python3` then paste the code).
+     flask==3.0.3
+     nltk==3.9.1
+     numpy==1.26.4
+     joblib==1.4.2
+     gunicorn==23.0.0
+     flask-limiter==3.8.0
+     ```
 
+4. **Download NLTK Data**:
+   ```bash
+   python3 -c "import nltk; nltk.download(['punkt', 'punkt_tab', 'stopwords', 'wordnet', 'names'], download_dir='~/nltk_data')"
+   ```
 
 ## Training
-### Initial Training
-The training process leverages several powerful libraries to handle data loading, preprocessing, feature extraction, model training, and evaluation in detail:
+### Initial and Incremental Training
+The training process leverages several libraries for efficient data processing and model updates:
+- **Data Loading with Pandas**: Loads CSV datasets (e.g., `/home/branch/Downloads/new_training_data.csv`) into DataFrames, handling column renaming and label mapping (e.g., 'Hate Speech' to 0).
+- **Text Preprocessing with NLTK**: Uses tokenization (`word_tokenize`), stopword removal, and lemmatization (`WordNetLemmatizer`) to clean text data.
+- **Feature Extraction with Scikit-Learn**: Applies `TfidfVectorizer` (`max_features=10000`, `ngram_range=(1, 2)`) to convert text into TF-IDF features.
+- **Incremental Training with SGDClassifier**: Uses `partial_fit` to update the model in chunks (10,000 rows), supporting large datasets (e.g., 1M rows) and preserving existing TF-IDF vocabulary.
+- **Progress Tracking with tqdm**: Displays progress bars for preprocessing and training.
+- **Serialization with Joblib**: Saves the model (`model.joblib`) and vectorizer (`vectorizer.joblib`) to `inference/`.
 
-- **Data Loading and Manipulation with Pandas**: `pandas` is used to load the CSV dataset (`train.csv`) into a DataFrame, enabling efficient handling of structured data. It supports column renaming (e.g., renaming 'label' to 'class' for consistency), label mapping (converting string labels like 'Hate Speech' to numeric values 0, 1, or 2), and data shuffling or splitting. Pandas' capabilities ensure seamless data preparation, with functions like `pd.read_csv`, `df.rename`, and `df.map` providing robust data manipulation.
-
-- **Text Preprocessing with NLTK**: The Natural Language Toolkit (NLTK) is employed for comprehensive text preprocessing. It includes tokenization (`word_tokenize`) to split text into words, stopword removal (`stopwords.words('english')`) to eliminate common words like 'the' or 'is' that add noise, and lemmatization (`WordNetLemmatizer`) to reduce words to their base form (e.g., 'running' to 'run'). NLTK's `nltk.download` ensures required corpora (e.g., 'punkt', 'punkt_tab', 'stopwords', 'wordnet') are available. This step is critical for cleaning the `tweet` column, reducing dimensionality, and improving model performance.
-
-- **Feature Extraction with Scikit-Learn's TfidfVectorizer**: Scikit-learn (`sklearn`) provides the `TfidfVectorizer` for converting preprocessed text into TF-IDF features, which weigh term importance based on frequency in the document and rarity across the corpus. Parameters like `max_features=10000` limit vocabulary to the most relevant 10,000 terms, `ngram_range=(1, 2)` captures unigrams and bigrams for context (e.g., "want to"), and `min_df=2` ignores rare terms. This library's vectorization is essential for transforming text into numerical input for the classifier.
-
-- **Model Training with Scikit-Learn's SGDClassifier**: Scikit-learn's `SGDClassifier` is the core classifier, using stochastic gradient descent for efficient training on large datasets. Parameters like `loss='log_loss'` enable probabilistic outputs, `max_iter=1000` and `tol=1e-3` control convergence, and `random_state=42` ensures reproducibility. The script supports incremental learning via `partial_fit` for updating the model with new data in chunks (e.g., 10,000 rows), making it scalable for large datasets like 1M rows. Scikit-learn's `train_test_split` splits data into 80/20 train/test sets, and `classification_report` evaluates performance with precision, recall, F1-score, and accuracy.
-
-- **Progress Tracking with tqdm**: The `tqdm` library adds progress bars to long-running operations like preprocessing (`tqdm(df['tweet'])`) and chunked training (`tqdm(range(0, len(df), chunk_size))`), providing real-time feedback on completion status, which is crucial for large datasets.
-
-- **Serialization with Joblib**: `joblib` is used to save (`joblib.dump`) and load (`joblib.load`) the trained model and vectorizer as `.joblib` files, enabling efficient persistence and loading of large objects like the TF-IDF matrix.
-
-Run locally (without Docker):
+Run training (initial or incremental):
 ```bash
 cd training
+source venv/bin/activate
 python3 train_model.py
 ```
+- If `model.joblib` and `vectorizer.joblib` exist, the script loads them for incremental updates.
+- New data is processed in chunks, and the model is updated with `partial_fit`.
+- Performance is evaluated on a 20% sample with precision, recall, F1-score, and accuracy.
 
-### Incremental Training
-Updates the model with new data (e.g., `synthetic_toxic_tweets_1M.csv`) using `partial_fit`:
-- Loads new data, applies same preprocessing, and uses existing vectorizer.
-- Updates model weights in chunks (10,000 rows) for scalability.
-- Evaluates performance on a 20% test split.
-- Overwrites `model.joblib`.
-
-Run locally (without Docker):
-```bash
-cd training
-python3 train_model.py
+**Example Output** (300,000 rows):
 ```
-
-**Example Output** (1M rows):
-```
-Loaded model from ../inference/model.joblib and vectorizer from ../inference/vectorizer.joblib
-Loading dataset from /Users/apple/Downloads/synthetic_toxic_tweets_1M.csv...
-Renaming label column 'label' to 'class'...
-Mapping string labels to numeric values...
-Preprocessing text...
-Preprocessing: 100%|██████████| 1000000/1000000 [02:30<00:00, 6666.67it/s]
-Performing incremental training...
-Incremental Training: 100%|██████████| 80/80 [00:45<00:00,  1.78it/s]
-Evaluating model...
+Loading existing model from ../inference/model.joblib...
+Loading existing vectorizer from ../inference/vectorizer.joblib...
+Starting incremental training with /home/branch/Downloads/new_training_data.csv...
+Processing chunk of size 10000...
+Preprocessing chunk: 100%|██████████| 10000/10000 [00:01<00:00, 6666.67it/s]
+Transforming text with existing vectorizer...
+Updating model with partial_fit...
+[Repeated for 30 chunks]
+Evaluating model on a sample...
+Preprocessing eval sample: 100%|██████████| 60000/60000 [00:09<00:00, 6666.67it/s]
 Model Performance:
                precision    recall  f1-score   support
-Hate Speech       0.95      0.94      0.95     66667
-Offensive Language 0.96      0.95      0.96     66667
-Neutral / Clean   0.97      0.98      0.97     66666
-accuracy                            0.96    200000
-macro avg          0.96      0.96      0.96    200000
-weighted avg       0.96      0.96      0.96    200000
+Hate Speech       0.62      0.62      0.62     20000
+Offensive Language 0.38      0.38      0.38     20000
+Neutral           0.74      0.74      0.74     20000
+accuracy                            0.58     60000
+macro avg         0.58      0.58      0.58     60000
+weighted avg      0.58      0.58      0.58     60000
 Model saved to ../inference/model.joblib
-Vectorizer saved to ../inference/vectorizer.joblib
 ```
+
+### Improving Accuracy
+To improve accuracy (e.g., from 62% for Hate Speech, 38% for Offensive Language), generate or source additional diverse training data with clear distinctions between classes. Retrain incrementally to update the model.
 
 ## Inference
 1. **Run the Flask API Locally**:
    ```bash
    cd inference
-   python3 app.py
+   source ../training/venv/bin/activate
+   gunicorn --workers=4 --bind=0.0.0.0:5001 --log-level=info app:app &
    ```
-   Starts server at `http://localhost:5000`.
+   Starts server at `http://localhost:5001`.
 
 2. **Test the API**:
-   - Send a POST request to the `/classify` endpoint:
-     ```bash
-     curl -X POST http://localhost:5000/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
-     ```
-   - Expected response:
-     ```json
-     {
-       "label": "Hate Speech",
-       "confidence": 0.92,
-       "explanation": "Flagged for hate speech based on terms: kill, want, sheen"
-     }
-     ```
+   ```bash
+   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   ```
+   Expected response:
+   ```json
+   {
+     "label": "Hate Speech",
+     "confidence": 0.92,
+     "explanation": "Flagged for hate speech based on terms: kill, want, sheen",
+     "influential_terms": ["kill", "want", "sheen"]
+   }
+   ```
+   Stop Gunicorn:
+   ```bash
+   pkill -f gunicorn
+   ```
 
 ## Dockerization
-Containerize the inference API for deployment on a CPU machine:
-
+Containerize the inference API for CPU-based production deployment:
 1. **Prepare Files**:
    - Ensure `inference/` contains `app.py`, `toxic_text_scanner.py`, `config.py`, `requirements.txt`, `model.joblib`, `vectorizer.joblib`.
    - Ensure `Dockerfile` and `docker-compose.yml` are in the project root.
 
 2. **Build and Deploy**:
-   - Install Docker and Docker Compose if not already installed:
-     ```bash
-     sudo apt update
-     sudo apt install docker.io docker-compose
-     sudo systemctl start docker
-     sudo systemctl enable docker
-     ```
-   - Build the Docker image:
-     ```bash
-     docker build -t toxictext-scanner-inference .
-     ```
-   - Run the container:
-     ```bash
-     docker run -d -p 5000:5000 toxictext-scanner-inference
-     ```
-   - Alternatively, use Docker Compose:
-     ```bash
-     docker-compose up -d
-     ```
+   ```bash
+   cd /home/branch/projects/toxictext-scanner
+   sudo apt update
+   sudo apt install docker.io docker-compose
+   sudo systemctl start docker
+   sudo systemctl enable docker
+   docker-compose up -d
+   docker ps
+   ```
 
 3. **Test the API**:
    ```bash
-   curl -X POST http://localhost:5000/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   ```
+
+4. **Stop Docker**:
+   ```bash
+   docker-compose down
    ```
 
 ## Dataset Structure
-
-The dataset (`train.csv` or `new_data.csv`) must have:
-- `count`: Total annotations (3–7).
-- `hate_speech_count`: Annotations for hate speech.
-- `offensive_language_count`: Annotations for offensive language.
-- `neither_count`: Annotations for neutral.
-- `class`: Label (0=Hate Speech, 1=Offensive Language, 2=Neutral, or strings: 'hate_speech', 'offensive', 'neither').
+The dataset (e.g., `/home/branch/Downloads/new_training_data.csv`) must have:
+- `count`: Total annotations (e.g., 1).
+- `hate_speech_count`: 1 for Hate Speech, 0 otherwise.
+- `offensive_language_count`: 1 for Offensive Language, 0 otherwise.
+- `neither_count`: 1 for Neutral, 0 otherwise.
+- `class`: Label (0=Hate Speech, 1=Offensive Language, 2=Neutral, or strings: 'Hate Speech', 'Offensive Language', 'Neutral').
 - `tweet`: Text content.
 
-String labels are automatically mapped to numeric values in `train_model.py`.
+String labels are mapped to numeric values in `train_model.py`.
+
+## Troubleshooting
+- **Low Model Accuracy**: Source more diverse data with distinct features for Hate Speech, Offensive Language, and Neutral. Retrain with `train_model.py`.
+- **Missing Model Files**:
+  ```bash
+  ls -l /home/branch/projects/toxictext-scanner/inference/*.joblib
+  ```
+  Rerun `train_model.py` if missing.
+- **Dependency Issues**:
+  ```bash
+  pip install pandas==2.2.3 scikit-learn==1.3.0 nltk==3.9.1 numpy==1.26.4 joblib==1.4.2 tqdm==4.66.5 transformers==4.44.2
+  ```
+- **Docker Issues**:
+  ```bash
+  docker logs toxictext-scanner
+  ```
+
+**Verification Code**: 3Z9A5R7Q
