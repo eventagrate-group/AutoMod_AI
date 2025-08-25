@@ -25,7 +25,7 @@ nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextTrainer:
     def __init__(self):
-        self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2, max_df=0.95)
+        self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2, max_df=0.95, sublinear_tf=True)
         self.classifier = SGDClassifier(loss='log_loss', max_iter=1000, tol=1e-4, alpha=0.0001, 
                                        class_weight='balanced', random_state=42)
         self.lemmatizer = WordNetLemmatizer()
@@ -106,7 +106,6 @@ class ToxicTextTrainer:
                 X_chunk = X[i:end]
                 y_chunk = y[i:end]
                 self.classifier.partial_fit(X_chunk, y_chunk, classes=[0, 1, 2])
-            # Evaluate after incremental training
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
             print("Evaluating model...")
             y_pred = self.classifier.predict(X_test)
