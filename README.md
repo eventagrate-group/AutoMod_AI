@@ -64,25 +64,6 @@ toxictext-scanner/
      ```
      Example: Save as `download_nltk.py` and run `python3 download_nltk.py`, or execute in a Python interpreter (`python3` then paste the code).
 
-4. **Configure Paths**:
-   - Edit `training/config.py`:
-     ```python
-     CONFIG = {
-         'dataset_path': 'train.csv',                        # Initial dataset
-         'new_data_path': '/Users/apple/Downloads/synthetic_toxic_tweets_1M.csv', # Incremental dataset
-         'model_path': '../inference/model.joblib',
-         'vectorizer_path': '../inference/vectorizer.joblib'
-     }
-     ```
-   - Edit `inference/config.py`:
-     ```python
-     CONFIG = {
-         'model_path': 'model.joblib',
-         'vectorizer_path': 'vectorizer.joblib',
-         'port': 5000,
-         'debug': False  # Disabled for production
-     }
-     ```
 
 ## Training
 ### Initial Training
@@ -92,8 +73,6 @@ The training process leverages several powerful libraries to handle data loading
 
 - **Text Preprocessing with NLTK**: The Natural Language Toolkit (NLTK) is employed for comprehensive text preprocessing. It includes tokenization (`word_tokenize`) to split text into words, stopword removal (`stopwords.words('english')`) to eliminate common words like 'the' or 'is' that add noise, and lemmatization (`WordNetLemmatizer`) to reduce words to their base form (e.g., 'running' to 'run'). NLTK's `nltk.download` ensures required corpora (e.g., 'punkt', 'punkt_tab', 'stopwords', 'wordnet') are available. This step is critical for cleaning the `tweet` column, reducing dimensionality, and improving model performance.
 
-- **Regular Expression Cleaning with Re**: The `re` module is used for advanced text cleaning, removing URLs (`r'http\S+|www\S+'`), mentions (`r'@\w+'`), and non-alphabetic characters (`r'[^a-zA-Z\s]'`), ensuring the input is normalized and free from irrelevant patterns that could skew features.
-
 - **Feature Extraction with Scikit-Learn's TfidfVectorizer**: Scikit-learn (`sklearn`) provides the `TfidfVectorizer` for converting preprocessed text into TF-IDF features, which weigh term importance based on frequency in the document and rarity across the corpus. Parameters like `max_features=10000` limit vocabulary to the most relevant 10,000 terms, `ngram_range=(1, 2)` captures unigrams and bigrams for context (e.g., "want to"), and `min_df=2` ignores rare terms. This library's vectorization is essential for transforming text into numerical input for the classifier.
 
 - **Model Training with Scikit-Learn's SGDClassifier**: Scikit-learn's `SGDClassifier` is the core classifier, using stochastic gradient descent for efficient training on large datasets. Parameters like `loss='log_loss'` enable probabilistic outputs, `max_iter=1000` and `tol=1e-3` control convergence, and `random_state=42` ensures reproducibility. The script supports incremental learning via `partial_fit` for updating the model with new data in chunks (e.g., 10,000 rows), making it scalable for large datasets like 1M rows. Scikit-learn's `train_test_split` splits data into 80/20 train/test sets, and `classification_report` evaluates performance with precision, recall, F1-score, and accuracy.
@@ -101,8 +80,6 @@ The training process leverages several powerful libraries to handle data loading
 - **Progress Tracking with tqdm**: The `tqdm` library adds progress bars to long-running operations like preprocessing (`tqdm(df['tweet'])`) and chunked training (`tqdm(range(0, len(df), chunk_size))`), providing real-time feedback on completion status, which is crucial for large datasets.
 
 - **Serialization with Joblib**: `joblib` is used to save (`joblib.dump`) and load (`joblib.load`) the trained model and vectorizer as `.joblib` files, enabling efficient persistence and loading of large objects like the TF-IDF matrix.
-
-- **Path Management with Os**: The `os` module handles file existence checks (`os.path.exists`) and dynamic path handling, ensuring the script falls back to full training if models are missing.
 
 Run locally (without Docker):
 ```bash
