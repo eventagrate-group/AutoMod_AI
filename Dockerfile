@@ -10,12 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc-dev \
     libgomp1 \
     && pip install --no-cache-dir -r requirements.txt \
-    && python -c "import nltk; nltk.download(['punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir='/app/nltk_data')" \
+    && rm -rf /app/nltk_data \
+    && python -m nltk.downloader -d /app/nltk_data punkt punkt_tab stopwords wordnet \
+    && find /app/nltk_data -type f -ls \
     && ls -l /app/nltk_data \
     && ls -l /app/nltk_data/corpora \
     && ls -l /app/nltk_data/corpora/stopwords \
-    && python -c "import nltk; nltk.data.path.append('/app/nltk_data'); print(nltk.data.path); print(nltk.data.find('corpora/stopwords')); from nltk.corpus import stopwords; print(stopwords.words('english')[:10])" \
-    && chmod -R 755 /app/nltk_data \
+    && python -c "import nltk; nltk.data.path.append('/app/nltk_data'); from nltk.corpus import stopwords; print('Stopwords sample:', stopwords.words('english')[:10])" \
+    && chmod -R 777 /app/nltk_data \
     && apt-get purge -y --auto-remove gcc g++ libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
