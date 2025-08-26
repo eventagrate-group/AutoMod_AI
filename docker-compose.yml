@@ -12,4 +12,4 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
-      - /home/branch/projects/toxictext-scanner/inference:/app
+      - ./inference:/app
