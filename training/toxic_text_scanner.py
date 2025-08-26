@@ -1,4 +1,3 @@
-```python
 import nltk
 import re
 import joblib
@@ -56,4 +55,3 @@ class ToxicTextScanner:
             }
         except Exception as e:
             return {"error": f"Classification failed: {str(e)}"}
-```
