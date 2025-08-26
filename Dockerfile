@@ -4,13 +4,14 @@ WORKDIR /app
 
 COPY inference/ .
 
-# Install build dependencies and runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     libc-dev \
+    libgomp1 \
     && pip install --no-cache-dir -r requirements.txt \
     && python -c "import nltk; nltk.download(['punkt', 'punkt_tab', 'stopwords', 'wordnet'], download_dir='/app/nltk_data')" \
-    && apt-get purge -y --auto-remove gcc libc-dev \
+    && apt-get purge -y --auto-remove gcc g++ libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV NLTK_DATA=/app/nltk_data
