@@ -1,28 +1,17 @@
+
 import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
 import re
-import numpy as np
 import joblib
+import numpy as np
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
 from config import CONFIG
-from sklearn.linear_model import SGDClassifier
-
-# Set NLTK data path
-nltk.data.path.append('/home/branch/nltk_data')
-
-# Download required NLTK data
-nltk.download('punkt', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('punkt_tab', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('stopwords', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
 
 class ToxicTextScanner:
     def __init__(self):
         self.vectorizer = joblib.load(CONFIG['vectorizer_path'])
         self.classifier = joblib.load(CONFIG['model_path'])
-        if not isinstance(self.classifier, SGDClassifier):
-            raise TypeError(f"Loaded model is {type(self.classifier).__name__}, expected SGDClassifier")
         self.lemmatizer = WordNetLemmatizer()
         self.stop_words = set(stopwords.words('english'))
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
@@ -45,14 +34,15 @@ class ToxicTextScanner:
         
         # Get feature names and their coefficients for explanation
         feature_names = self.vectorizer.get_feature_names_out()
-        coef = self.classifier.coef_[prediction]
-        top_features = np.argsort(coef)[-3:][::-1]
-        influential_terms = [feature_names[i] for i in top_features]
+        coef = X.toarray()[0]
+        top_indices = coef.argsort()[-3:][::-1]
+        influential_terms = [feature_names[i] for i in top_indices if coef[i] > 0]
         
         explanation = f"Flagged for {self.class_names[prediction].lower()} based on terms: {', '.join(influential_terms)}"
         
         return {
             'label': self.class_names[prediction],
             'confidence': confidence,
-            'explanation': explanation
+            'explanation': explanation,
+            'influential_terms': influential_terms
         }
