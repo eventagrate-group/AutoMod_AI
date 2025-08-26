@@ -147,15 +147,14 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
 
 2. **Test the API**:
    ```bash
-   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "Replying to @harper: calm down, you clown. get lost #fun29 Also, read before you post"}'
    ```
    Expected response:
    ```json
    {
-     "label": "Hate Speech",
-     "confidence": 0.92,
-     "explanation": "Flagged for hate speech based on terms: kill, want, sheen",
-     "influential_terms": ["kill", "want", "sheen"]
+     "label": "Offensive Language",
+     "confidence": 0.86,
+     "explanation": "Flagged for offensive language based on terms: move, shut, absolute",
    }
    ```
    Stop Gunicorn:
