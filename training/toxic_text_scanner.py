@@ -1,46 +1,59 @@
-
+```python
 import nltk
+import re
 import joblib
 import numpy as np
-from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from config import MODEL_PATH, VECTORIZER_PATH
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from config import CONFIG
 
-# Append NLTK data path to ensure stopwords can be found
+# Ensure NLTK can find stopwords by appending the data path
 nltk.data.path.append('/app/nltk_data')
 
 class ToxicTextScanner:
     def __init__(self):
         try:
-            self.model = joblib.load(MODEL_PATH)
-            self.vectorizer = joblib.load(VECTORIZER_PATH)
+            self.vectorizer = joblib.load(CONFIG['vectorizer_path'])
+            self.classifier = joblib.load(CONFIG['model_path'])
+            self.lemmatizer = WordNetLemmatizer()
             self.stop_words = set(stopwords.words('english'))
+            self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
             print(f"Failed to initialize scanner: {str(e)}")
             raise
 
     def preprocess_text(self, text):
-        tokens = word_tokenize(text.lower())
-        tokens = [t for t in tokens if t.isalpha() and t not in self.stop_words]
+        text = str(text).lower()
+        text = re.sub(r'http\S+|www\S+', '', text)
+        text = re.sub(r'@\w+', '', text)
+        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        tokens = word_tokenize(text)
+        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
         return ' '.join(tokens)
 
-    def get_influential_terms(self, text):
-        tokens = word_tokenize(text.lower())
-        return [t for t in tokens if t.isalpha() and t not in self.stop_words]
-
-    def classify(self, text):
+    def classify_text(self, text):
         try:
             processed_text = self.preprocess_text(text)
-            vectorized_text = self.vectorizer.transform([processed_text])
-            prediction = self.model.predict(vectorized_text)[0]
-            confidence = np.max(self.model.predict_proba(vectorized_text))
-            influential_terms = self.get_influential_terms(text)
-            label = "Hate Speech" if prediction == 1 else "Neutral"
+            X = self.vectorizer.transform([processed_text])
+            prediction = self.classifier.predict(X)[0]
+            probabilities = self.classifier.predict_proba(X)[0]
+            confidence = float(np.max(probabilities))
+            
+            # Get feature names and their coefficients for explanation
+            feature_names = self.vectorizer.get_feature_names_out()
+            coef = X.toarray()[0]
+            top_indices = coef.argsort()[-3:][::-1]
+            influential_terms = [feature_names[i] for i in top_indices if coef[i] > 0]
+            
+            explanation = f"Flagged for {self.class_names[prediction].lower()} based on terms: {', '.join(influential_terms)}"
+            
             return {
-                "label": label,
-                "confidence": round(float(confidence), 2),
-                "explanation": f"Flagged as {label.lower()} based on terms: {', '.join(influential_terms)}",
-                "influential_terms": influential_terms
+                'label': self.class_names[prediction],
+                'confidence': confidence,
+                'explanation': explanation,
+                'influential_terms': influential_terms
             }
         except Exception as e:
             return {"error": f"Classification failed: {str(e)}"}
+```
