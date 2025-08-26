@@ -8,15 +8,16 @@ import re
 from sklearn.metrics import classification_report
 import numpy as np
 from config import CONFIG
+import os
 
 # Set NLTK data path
-nltk.data.path.append('/home/branch/nltk_data')
+nltk.data.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
 
 # Download required NLTK data
-nltk.download('punkt', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('punkt_tab', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('stopwords', quiet=True, download_dir='/home/branch/nltk_data')
-nltk.download('wordnet', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('punkt', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
+nltk.download('punkt_tab', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
+nltk.download('stopwords', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
+nltk.download('wordnet', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
 
 class ToxicTextVerifier:
     def __init__(self):
@@ -40,9 +41,9 @@ class ToxicTextVerifier:
     def verify(self):
         # Define validation files and their corresponding labels
         data_files = [
-            ('/home/branch/Downloads/hate_speech_verify.csv', 'Hate Speech', 0),
-            ('/home/branch/Downloads/offensive_language_verify.csv', 'Offensive Language', 1),
-            ('/home/branch/Downloads/neutral_verify.csv', 'Neutral', 2)
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'hate_speech_verify.csv'), 'Hate Speech', 0),
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'offensive_language_verify.csv'), 'Offensive Language', 1),
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'neutral_verify.csv'), 'Neutral', 2)
         ]
         dfs = []
         

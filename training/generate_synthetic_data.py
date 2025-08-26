@@ -8,13 +8,13 @@ from tqdm import tqdm
 import os
 
 # Set NLTK data path
-nltk.data.path.append('/home/branch/nltk_data')
+nltk.data.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
 
 # Download required NLTK data
-nltk.download('names', quiet=True, download_dir='/home/branch/nltk_data')
+nltk.download('names', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
 
 class SyntheticDataGenerator:
-    def __init__(self, output_path='/home/branch/Downloads/new_training_data.csv'):
+    def __init__(self, output_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'new_training_data.csv')):
         self.output_path = output_path
         self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
         self.model = GPT2LMHeadModel.from_pretrained('gpt2')
