@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip install --no-cache-dir -r requirements.txt \
     && rm -rf /app/nltk_data \
     && mkdir -p /app/nltk_data/corpora/stopwords \
-    && cp -r nltk_data/corpora/stopwords/* /app/nltk_data/corpora/stopwords/ \
+    && cp -r /app/nltk_data/corpora/stopwords/* /app/nltk_data/corpora/stopwords/ \
     && find /app/nltk_data -type f -ls \
     && ls -l /app/nltk_data \
     && ls -l /app/nltk_data/corpora \
