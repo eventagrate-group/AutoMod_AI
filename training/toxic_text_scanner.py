@@ -1,4 +1,3 @@
-
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -8,6 +7,9 @@ import numpy as np
 import joblib
 from config import CONFIG
 from sklearn.linear_model import SGDClassifier
+
+# Ensure NLTK data path includes /app/nltk_data
+nltk.data.path.append('/app/nltk_data')
 
 class ToxicTextScanner:
     def __init__(self):
