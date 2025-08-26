@@ -1,3 +1,4 @@
+import os
 import nltk
 import re
 import joblib
@@ -7,8 +8,8 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import CONFIG
 
-# Ensure NLTK can find stopwords by appending the data path
-nltk.data.path.append('/app/nltk_data')
+# Prefer env NLTK_DATA (works both in Docker and venv); fall back to a system path
+nltk.data.path.append(os.environ.get("NLTK_DATA", "/usr/share/nltk_data"))
 
 class ToxicTextScanner:
     def __init__(self):
@@ -16,7 +17,11 @@ class ToxicTextScanner:
             self.vectorizer = joblib.load(CONFIG['vectorizer_path'])
             self.classifier = joblib.load(CONFIG['model_path'])
             self.lemmatizer = WordNetLemmatizer()
-            self.stop_words = set(stopwords.words('english'))
+            # Try loading stopwords; if missing, default to empty set (won't crash)
+            try:
+                self.stop_words = set(stopwords.words('english'))
+            except LookupError:
+                self.stop_words = set()
             self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
             print(f"Failed to initialize scanner: {str(e)}")
@@ -28,7 +33,7 @@ class ToxicTextScanner:
         text = re.sub(r'@\w+', '', text)
         text = re.sub(r'[^a-zA-Z\s]', '', text)
         tokens = word_tokenize(text)
-        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
+        tokens = [self.lemmatizer.lemmatize(t) for t in tokens if t not in self.stop_words]
         return ' '.join(tokens)
 
     def classify_text(self, text):
@@ -38,20 +43,25 @@ class ToxicTextScanner:
             prediction = self.classifier.predict(X)[0]
             probabilities = self.classifier.predict_proba(X)[0]
             confidence = float(np.max(probabilities))
-            
-            # Get feature names and their coefficients for explanation
+
+            # Simple token influence based on TF-IDF weights present in this example
             feature_names = self.vectorizer.get_feature_names_out()
-            coef = X.toarray()[0]
-            top_indices = coef.argsort()[-3:][::-1]
-            influential_terms = [feature_names[i] for i in top_indices if coef[i] > 0]
-            
-            explanation = f"Flagged for {self.class_names[prediction].lower()} based on terms: {', '.join(influential_terms)}"
-            
+            row = X.toarray()[0]
+            top_idx = row.argsort()[-3:][::-1]
+            influential_terms = [feature_names[i] for i in top_idx if row[i] > 0]
+
             return {
-                'label': self.class_names[prediction],
-                'confidence': confidence,
-                'explanation': explanation,
-                'influential_terms': influential_terms
+                "label": self.class_names[prediction],
+                "confidence": confidence,
+                "explanation": (
+                    f"Flagged for {self.class_names[prediction].lower()} "
+                    f"based on terms: {', '.join(influential_terms) or 'n/a'}"
+                ),
+                "influential_terms": influential_terms,
             }
         except Exception as e:
             return {"error": f"Classification failed: {str(e)}"}
+
+    # Backward-compatibility: some callers use scanner.scan(...)
+    def scan(self, text):
+        return self.classify_text(text)

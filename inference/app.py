@@ -1,45 +1,29 @@
 from flask import Flask, request, jsonify
 from toxic_text_scanner import ToxicTextScanner
-import os
-import nltk
 
 app = Flask(__name__)
-nltk.data.path.append(os.getenv('NLTK_DATA', os.path.join(os.getcwd(), 'nltk_data')))
+scanner = ToxicTextScanner()
 
-# Initialize the scanner
-try:
-    scanner = ToxicTextScanner()
-except FileNotFoundError as e:
-    app.logger.error(f"Model or vectorizer not found: {e}")
-    raise
-except Exception as e:
-    app.logger.error(f"Failed to initialize scanner: {e}")
-    raise
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
-@app.route('/classify', methods=['POST'])
-def classify_text():
-    try:
-        data = request.get_json()
-        text = data.get('text', '')
-        if not text:
-            return jsonify({'error': 'No text provided'}), 400
-        result = scanner.classify_text(text)
-        if 'error' in result:
-            app.logger.error(f"Classification error: {result['error']}")
-            return jsonify({'error': result['error']}), 500
-        return jsonify({
-            'label': result['label'],
-            'confidence': result['confidence'],
-            'explanation': result['explanation'],
-            'influential_terms': result.get('influential_terms', [])
-        }), 200
-    except FileNotFoundError:
-        app.logger.error("Model or vectorizer not found")
-        return jsonify({'error': 'Model or vectorizer not found. Please run the training script first.'}), 500
-    except Exception as e:
-        app.logger.error(f"Error in /classify: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+@app.route("/classify", methods=["POST"])
+def classify():
+    data = request.get_json(silent=True) or {}
+    text = data.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "Provide a non-empty 'text' string"}), 400
 
-if __name__ == '__main__':
-    from config import CONFIG
-    app.run(host='0.0.0.0', port=CONFIG['port'], debug=CONFIG['debug'])
+    result = scanner.classify_text(text)
+
+    # If the scanner returned an error, pass it through
+    if isinstance(result, dict) and "error" in result:
+        return jsonify(result), 500
+
+    # Normal successful response
+    return jsonify(result), 200
+
+if __name__ == "__main__":
+    # Useful for local debugging only; production uses gunicorn
+    app.run(host="0.0.0.0", port=5001, debug=False)
