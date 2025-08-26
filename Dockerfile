@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && pip install --no-cache-dir -r requirements.txt \
     && rm -rf /app/nltk_data \
-    && python -m nltk.downloader -d /app/nltk_data punkt punkt_tab stopwords wordnet \
+    && mkdir -p /app/nltk_data/corpora/stopwords \
+    && cp -r nltk_data/corpora/stopwords/* /app/nltk_data/corpora/stopwords/ \
     && find /app/nltk_data -type f -ls \
     && ls -l /app/nltk_data \
     && ls -l /app/nltk_data/corpora \
