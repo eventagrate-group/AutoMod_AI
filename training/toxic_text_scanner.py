@@ -7,7 +7,7 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import CONFIG
 
-# Ensure NLTK can find stopwords by appending the data path
+# Ensure NLTK can find stopwords by appending  the data path
 nltk.data.path.append('/app/nltk_data')
 
 class ToxicTextScanner:
