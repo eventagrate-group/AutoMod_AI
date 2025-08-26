@@ -23,7 +23,10 @@ def classify_text():
         text = data.get('text', '')
         if not text:
             return jsonify({'error': 'No text provided'}), 400
-        result = scanner.scan(text)  # Changed from classify_text to scan
+        result = scanner.classify_text(text)
+        if 'error' in result:
+            app.logger.error(f"Classification error: {result['error']}")
+            return jsonify({'error': result['error']}), 500
         return jsonify({
             'label': result['label'],
             'confidence': result['confidence'],
