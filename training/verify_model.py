@@ -4,12 +4,15 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
-from farasa.stemmer import FarasaStemmer
 import re
 from sklearn.metrics import classification_report
 import numpy as np
 from config import CONFIG
 import os
+try:
+    import stanza
+except ImportError:
+    stanza = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
@@ -24,25 +27,26 @@ class ToxicTextVerifier:
     def __init__(self):
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         self.lemmatizer = WordNetLemmatizer()
-        self.stemmer = FarasaStemmer()
+        self.use_stanza = stanza is not None
+        if self.use_stanza:
+            print("Initializing Stanza pipeline for Arabic...")
+            self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, download_method=None)
+        try:
+            self.stop_words_en = set(stopwords.words('english'))
+            self.stop_words_ar = set(stopwords.words('arabic'))
+        except LookupError:
+            self.stop_words_en = set()
+            self.stop_words_ar = set()
         # Load English resources
         self.model_path_en = CONFIG['model_path']
         self.vectorizer_path_en = CONFIG['vectorizer_path']
         self.classifier_en = joblib.load(self.model_path_en)
         self.vectorizer_en = joblib.load(self.vectorizer_path_en)
-        try:
-            self.stop_words_en = set(stopwords.words('english'))
-        except LookupError:
-            self.stop_words_en = set()
         # Load Arabic resources
         self.model_path_ar = CONFIG['model_path_ar']
         self.vectorizer_path_ar = CONFIG['vectorizer_path_ar']
         self.classifier_ar = joblib.load(self.model_path_ar)
         self.vectorizer_ar = joblib.load(self.vectorizer_path_ar)
-        try:
-            self.stop_words_ar = set(stopwords.words('arabic'))
-        except LookupError:
-            self.stop_words_ar = set()
 
     def preprocess_text(self, text, lang='en'):
         text = str(text).lower()
@@ -54,12 +58,15 @@ class ToxicTextVerifier:
             tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
         else:  # lang == 'ar'
             text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-            tokens = self.stemmer.stem(text).split()
-            tokens = [token for token in tokens if token not in self.stop_words_ar]
+            if self.use_stanza:
+                doc = self.nlp(text)
+                tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+            else:
+                tokens = word_tokenize(text)
+                tokens = [token for token in tokens if token not in self.stop_words_ar]
         return ' '.join(tokens)
 
     def verify(self, lang='en'):
-        # Define validation files based on language
         data_dir = os.path.dirname(CONFIG['new_data_path']) if lang == 'en' else os.path.dirname(CONFIG['new_data_path_ar'])
         data_files = [
             (os.path.join(data_dir, 'hate_speech_verify.csv'), 'Hate Speech', 0),
@@ -90,10 +97,8 @@ class ToxicTextVerifier:
             print(f"No validation data found for {lang}, aborting verification.")
             return
         
-        # Combine data
         df = pd.concat(dfs, ignore_index=True)
         
-        # Map string labels to numeric
         label_map = {
             'Hate Speech': 0,
             'Offensive Language': 1,
@@ -107,23 +112,19 @@ class ToxicTextVerifier:
         print(f"Mapping {lang} string labels to numeric values...")
         df['class'] = df['class'].map(label_map)
         
-        # Preprocess text
         print(f"Preprocessing {lang} text...")
         df['processed_tweet'] = [self.preprocess_text(text, lang=lang) for text in df['tweet']]
         
-        # Vectorize
         print(f"Vectorizing {lang} text...")
         vectorizer = self.vectorizer_ar if lang == 'ar' else self.vectorizer_en
         classifier = self.classifier_ar if lang == 'ar' else self.classifier_en
         X = vectorizer.transform(df['processed_tweet'])
         y_true = df['class']
         
-        # Predict
         print(f"Making predictions for {lang}...")
         y_pred = classifier.predict(X)
         y_proba = classifier.predict_proba(X)
         
-        # Classification report
         print(f"\n{lang.upper()} Classification Summary:")
         report = classification_report(y_true, y_pred, target_names=self.class_names, output_dict=True, zero_division=0)
         for class_name in self.class_names:
@@ -131,7 +132,6 @@ class ToxicTextVerifier:
             total = int(report[class_name]['support'])
             print(f"{class_name}: {correct}/{total} correct ({report[class_name]['recall']*100:.2f}%)")
         
-        # Top influential terms
         print(f"\nTop Influential Terms by Predicted Class ({lang}):")
         feature_names = vectorizer.get_feature_names_out()
         for class_idx, class_name in enumerate(self.class_names):
@@ -142,7 +142,6 @@ class ToxicTextVerifier:
                 top_terms = [(feature_names[i], round(class_features[i] * 100)) for i in top_indices]
                 print(f"{class_name}: {top_terms}")
         
-        # Misclassified examples
         print(f"\nMisclassified Examples (first 5, {lang}):")
         misclassified = y_true != y_pred
         misclassified_indices = np.where(misclassified)[0]

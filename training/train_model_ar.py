@@ -6,12 +6,15 @@ from sklearn.metrics import classification_report
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from farasa.stemmer import FarasaStemmer
 import numpy as np
 import joblib
 import os
 from config import CONFIG
 from tqdm import tqdm
+try:
+    import stanza
+except ImportError:
+    stanza = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
@@ -30,8 +33,11 @@ class ToxicTextTrainerArabic:
             self.stop_words = set(stopwords.words('arabic'))
         except LookupError:
             self.stop_words = set()
-        # Initialize Farasa stemmer
-        self.stemmer = FarasaStemmer()
+        # Initialize Stanza pipeline if available
+        self.use_stanza = stanza is not None
+        if self.use_stanza:
+            print("Initializing Stanza pipeline for Arabic...")
+            self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, download_method=None)
         # Initialize or load vectorizer
         if os.path.exists(self.vectorizer_path):
             print(f"Loading existing vectorizer from {self.vectorizer_path}...")
@@ -52,8 +58,12 @@ class ToxicTextTrainerArabic:
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
         text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-        tokens = self.stemmer.stem(text).split()
-        tokens = [token for token in tokens if token not in self.stop_words]
+        if self.use_stanza:
+            doc = self.nlp(text)
+            tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words]
+        else:
+            tokens = word_tokenize(text)
+            tokens = [token for token in tokens if token not in self.stop_words]
         return ' '.join(tokens)
 
     def train(self, csv_path, chunk_size=10000):
