@@ -36,9 +36,9 @@ class ToxicTextTrainerArabic:
         except LookupError:
             self.stop_words = set()
         # Initialize Stanza pipeline if available
-        self.use_stanza = stanza is not None
+        self.use_stanza = True
         self.device = 'cuda' if torch is not None and torch.cuda.is_available() else 'cpu'
-        if self.use_stanza:
+        if self.use_stanza and stanza is not None:
             print(f"Initializing Stanza pipeline for Arabic on {self.device}...")
             try:
                 self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=os.path.expanduser("~/stanza_resources"))
@@ -116,7 +116,7 @@ class ToxicTextTrainerArabic:
                 batch = chunk['tweet'][i:i + batch_size].tolist()
                 processed_tweets.extend(self.preprocess_text(batch))
             chunk['processed_tweet'] = processed_tweets
-            if first_chunk and not os.path.exists(self.vectorizer_path):
+            if first_chunk:
                 print("Fitting vectorizer on first chunk...")
                 X = self.vectorizer.fit_transform(chunk['processed_tweet'])
                 joblib.dump(self.vectorizer, self.vectorizer_path)
@@ -150,5 +150,5 @@ class ToxicTextTrainerArabic:
         print(classification_report(y_eval, y_pred, target_names=self.class_names, zero_division=0))
 
 if __name__ == "__main__":
-    trainer = ToxicTextTrainerArabic(reset_model=True)  # Reset to ensure Stanza compatibility
+    trainer = ToxicTextTrainerArabic(reset_model=True)
     trainer.train(CONFIG['new_data_path_ar'])
