@@ -34,7 +34,7 @@ class ToxicTextTrainerArabic:
         except LookupError:
             self.stop_words = set()
         # Initialize Stanza pipeline if available
-        self.use_stanza = True  # Temporarily disable Stanza due to resource error
+        self.use_stanza = False  # Temporarily disable Stanza due to resource error
         if self.use_stanza and stanza is not None:
             print("Initializing Stanza pipeline for Arabic...")
             try:
