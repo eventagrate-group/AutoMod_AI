@@ -1,7 +1,10 @@
 from flask import Flask, request, jsonify
 from toxic_text_scanner import ToxicTextScanner
+import os
 
 app = Flask(__name__)
+# Set NLTK data path
+os.environ['NLTK_DATA'] = os.path.join(os.getcwd(), 'nltk_data')
 scanner = ToxicTextScanner()
 
 @app.route("/health", methods=["GET"])
@@ -26,4 +29,4 @@ def classify():
 
 if __name__ == "__main__":
     # Useful for local debugging only; production uses gunicorn
-    app.run(host="0.0.0.0", port=5001, debug=False)
+    app.run(host="0.0.0.0", port=CONFIG['port'], debug=CONFIG['debug'])

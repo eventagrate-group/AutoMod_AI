@@ -10,6 +10,6 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       autorestart: true,
-      max_memory_restart: '1G'
+      max_memory_restart: '2G'  // Increased for two models
     }]
-  }
+}
