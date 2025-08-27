@@ -133,4 +133,4 @@ if __name__ == "__main__":
     trainer_en.train(CONFIG['new_data_path'])
     # Train Arabic model
     trainer_ar = ToxicTextTrainer(lang='ar')
-    trainer_ar.train(os.path.join(os.path.dirname(CONFIG['new_data_path']), 'data_arabic', 'new_training_data.csv'))
+    trainer_ar.train(CONFIG['new_data_path_ar'])
