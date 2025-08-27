@@ -85,7 +85,8 @@ class ToxicTextTrainer:
             'hate_speech': 0,
             'offensive': 1,
             'neither': 2,
-            'offensive_language': 1  # Added to handle Arabic dataset label
+            'offensive_language': 1,
+            'neutral': 2  # Added to handle Arabic dataset label
         }
         # Process data in chunks
         first_chunk = True

@@ -98,7 +98,9 @@ class ToxicTextVerifier:
             'Neutral': 2,
             'hate_speech': 0,
             'offensive': 1,
-            'neither': 2
+            'neither': 2,
+            'offensive_language': 1,
+            'neutral': 2  # Added to handle Arabic validation labels
         }
         print(f"Mapping {lang} string labels to numeric values...")
         df['class'] = df['class'].map(label_map)
