@@ -58,11 +58,11 @@ class ToxicTextVerifier:
 
     def verify(self, lang='en'):
         # Define validation files based on language
-        data_dir = 'data_arabic' if lang == 'ar' else 'data'
+        data_dir = os.path.dirname(CONFIG['new_data_path']) if lang == 'en' else os.path.dirname(CONFIG['new_data_path_ar'])
         data_files = [
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'hate_speech_verify.csv'), 'Hate Speech', 0),
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'offensive_language_verify.csv'), 'Offensive Language', 1),
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'neutral_verify.csv'), 'Neutral', 2)
+            (os.path.join(data_dir, 'hate_speech_verify.csv'), 'Hate Speech', 0),
+            (os.path.join(data_dir, 'offensive_language_verify.csv'), 'Offensive Language', 1),
+            (os.path.join(data_dir, 'neutral_verify.csv'), 'Neutral', 2)
         ]
         dfs = []
         
@@ -100,7 +100,7 @@ class ToxicTextVerifier:
             'offensive': 1,
             'neither': 2,
             'offensive_language': 1,
-            'neutral': 2  # Added to handle Arabic validation labels
+            'neutral': 2
         }
         print(f"Mapping {lang} string labels to numeric values...")
         df['class'] = df['class'].map(label_map)
@@ -123,7 +123,7 @@ class ToxicTextVerifier:
         
         # Classification report
         print(f"\n{lang.upper()} Classification Summary:")
-        report = classification_report(y_true, y_pred, target_names=self.class_names, output_dict=True)
+        report = classification_report(y_true, y_pred, target_names=self.class_names, output_dict=True, zero_division=0)
         for class_name in self.class_names:
             correct = int(report[class_name]['support'] * report[class_name]['recall'])
             total = int(report[class_name]['support'])
