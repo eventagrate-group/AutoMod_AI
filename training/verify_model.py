@@ -4,6 +4,7 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+from farasa.stemmer import FarasaStemmer
 import re
 from sklearn.metrics import classification_report
 import numpy as np
@@ -23,6 +24,7 @@ class ToxicTextVerifier:
     def __init__(self):
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         self.lemmatizer = WordNetLemmatizer()
+        self.stemmer = FarasaStemmer()
         # Load English resources
         self.model_path_en = CONFIG['model_path']
         self.vectorizer_path_en = CONFIG['vectorizer_path']
@@ -52,7 +54,7 @@ class ToxicTextVerifier:
             tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
         else:  # lang == 'ar'
             text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-            tokens = word_tokenize(text)
+            tokens = self.stemmer.stem(text).split()
             tokens = [token for token in tokens if token not in self.stop_words_ar]
         return ' '.join(tokens)
 

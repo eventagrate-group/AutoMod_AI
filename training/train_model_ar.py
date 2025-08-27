@@ -6,7 +6,7 @@ from sklearn.metrics import classification_report
 import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
+from farasa.stemmer import FarasaStemmer
 import numpy as np
 import joblib
 import os
@@ -20,40 +20,40 @@ nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nlt
 nltk.download('punkt', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
 nltk.download('punkt_tab', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
 nltk.download('stopwords', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
-nltk.download('wordnet', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
 
-class ToxicTextTrainer:
+class ToxicTextTrainerArabic:
     def __init__(self):
-        self.model_path = CONFIG['model_path']
-        self.vectorizer_path = CONFIG['vectorizer_path']
+        self.model_path = CONFIG['model_path_ar']
+        self.vectorizer_path = CONFIG['vectorizer_path_ar']
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
-        self.lemmatizer = WordNetLemmatizer()
         try:
-            self.stop_words = set(stopwords.words('english'))
+            self.stop_words = set(stopwords.words('arabic'))
         except LookupError:
             self.stop_words = set()
+        # Initialize Farasa stemmer
+        self.stemmer = FarasaStemmer()
         # Initialize or load vectorizer
         if os.path.exists(self.vectorizer_path):
             print(f"Loading existing vectorizer from {self.vectorizer_path}...")
             self.vectorizer = joblib.load(self.vectorizer_path)
         else:
             print("Initializing new vectorizer...")
-            self.vectorizer = TfidfVectorizer(max_features=20000, ngram_range=(1, 2), min_df=2, max_df=0.95, sublinear_tf=True)
+            self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2, max_df=0.95, sublinear_tf=True)
         # Initialize or load classifier
         if os.path.exists(self.model_path):
             print(f"Loading existing model from {self.model_path}...")
             self.classifier = joblib.load(self.model_path)
         else:
             print("Initializing new classifier...")
-            self.classifier = SGDClassifier(loss='log_loss', max_iter=1, tol=None, random_state=42, warm_start=True)
+            self.classifier = SGDClassifier(loss='log_loss', max_iter=5, tol=1e-3, random_state=42, warm_start=True)
 
     def preprocess_text(self, text):
         text = str(text).lower()
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
-        tokens = word_tokenize(text)
-        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
+        text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
+        tokens = self.stemmer.stem(text).split()
+        tokens = [token for token in tokens if token not in self.stop_words]
         return ' '.join(tokens)
 
     def train(self, csv_path, chunk_size=10000):
@@ -73,13 +73,9 @@ class ToxicTextTrainer:
             raise ValueError(f"No label column found in {csv_path}. Expected one of: {possible_label_columns}")
         # Label mapping
         label_map = {
-            'Hate Speech': 0,
-            'Offensive Language': 1,
-            'Neutral': 2,
             'hate_speech': 0,
-            'offensive': 1,
-            'neither': 2,
-            'offensive_language': 1
+            'offensive_language': 1,
+            'neutral': 2
         }
         # Process data in chunks
         first_chunk = True
@@ -120,8 +116,8 @@ class ToxicTextTrainer:
         y_eval = df['class']
         y_pred = self.classifier.predict(X_eval)
         print("Model Performance on Sample:")
-        print(classification_report(y_eval, y_pred, target_names=self.class_names))
+        print(classification_report(y_eval, y_pred, target_names=self.class_names, zero_division=0))
 
 if __name__ == "__main__":
-    trainer = ToxicTextTrainer()
-    trainer.train(CONFIG['new_data_path'])
+    trainer = ToxicTextTrainerArabic()
+    trainer.train(CONFIG['new_data_path_ar'])
