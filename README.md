@@ -19,25 +19,25 @@ toxictext-scanner/
 │   ├── toxic_text_scanner.py        # Core preprocessing and classification logic
 │   ├── app.py                      # Flask API for text classification
 │   ├── config.py                   # API and model configuration
-│   ├── requirements.txt            # Dependencies (flask, nltk, joblib)
+│   ├── requirements.txt            # Dependencies (flask, nltk, joblib, etc.)
 │   ├── model.joblib                # Trained SGDClassifier model
 │   ├── vectorizer.joblib           # Trained TF-IDF vectorizer
-├── Dockerfile                      # Docker configuration for containerization
-├── docker-compose.yml              # Orchestration for inference
+│   ├── ecosystem.config.js          # PM2 configuration for production
 ├── README.md                       # This file
 ```
 
 ## Features
 - **Text Classification**: Labels text as `Hate Speech` (0), `Offensive Language` (1), or `Neutral` (2) with confidence scores and dynamic explanations based on TF-IDF feature weights.
 - **Incremental Learning**: Updates the `SGDClassifier` using `partial_fit`, preserving the initial TF-IDF vocabulary for consistency.
-- **REST API**: Flask endpoint (`/classify`) for real-time classification.
+- **REST API**: Flask endpoints (`/classify` for text classification, `/health` for service status) for real-time inference.
 - **Performance Metrics**: Reports precision, recall, F1-score, and accuracy after training/incremental training.
-- **Docker Support**: Containerized setup for the inference API.
+- **PM2 Deployment**: Uses PM2 for process management, enabling easy scaling and monitoring in production.
 
 ## Prerequisites
 - Ubuntu 24.04.3 LTS
 - Python 3.12
-- Docker and Docker Compose (for inference containerization)
+- Node.js and npm (for PM2)
+- Nginx (for reverse proxy)
 - Git
 - Sufficient memory (8–16 GB RAM for training 1M rows)
 - Internet connection for NLTK data
@@ -49,11 +49,17 @@ toxictext-scanner/
    cd toxictext-scanner
    ```
 
-2. **Install Dependencies**:
+2. **Install System Dependencies**:
+   ```bash
+   sudo apt update
+   sudo apt install -y python3-pip python3-venv nodejs npm nginx
+   ```
+
+3. **Install Python Dependencies**:
    - For training:
      ```bash
      cd training
-     python3.12 -m venv venv
+     python3 -m venv venv
      source venv/bin/activate
      pip install --upgrade pip
      pip install -r requirements.txt
@@ -72,8 +78,10 @@ toxictext-scanner/
    - For inference:
      ```bash
      cd inference
-     source ../training/venv/bin/activate
+     python3 -m venv venv
+     source venv/bin/activate
      pip install -r requirements.txt
+     pip install gunicorn==23.0.0
      ```
      Ensure `inference/requirements.txt` contains:
      ```
@@ -83,11 +91,14 @@ toxictext-scanner/
      joblib==1.4.2
      gunicorn==23.0.0
      flask-limiter==3.8.0
+     scikit-learn==1.5.2
      ```
 
-3. **Download NLTK Data**:
+4. **Download NLTK Data**:
    ```bash
-   python3 -c "import nltk; nltk.download(['punkt', 'punkt_tab', 'stopwords', 'wordnet', 'names'], download_dir='training/nltk_data')"
+   cd inference
+   source venv/bin/activate
+   python3 -m nltk.downloader -d ./nltk_data stopwords wordnet punkt_tab
    ```
 
 ## Training
@@ -137,56 +148,79 @@ Model saved to inference/model.joblib
 To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive Language, 90% for Neutral), generate or source additional diverse training data with clear distinctions between classes using `generate_synthetic_data.py`. Retrain incrementally to update the model.
 
 ## Inference
-1. **Run the Flask API Locally**:
+1. **Install PM2**:
+   ```bash
+   sudo npm install -g pm2
+   ```
+
+2. **Run the Flask API with PM2**:
    ```bash
    cd inference
-   source ../training/venv/bin/activate
-   gunicorn --workers=4 --bind=0.0.0.0:5001 --log-level=info app:app &
+   source venv/bin/activate
+   pm2 start ecosystem.config.js
+   pm2 save
+   pm2 startup
    ```
-   Starts server at `http://localhost:5001`.
+   Follow the `pm2 startup` output to enable PM2 on boot (e.g., `sudo systemctl enable pm2-ubuntu`).
 
-2. **Test the API**:
+3. **Configure Nginx**:
    ```bash
-   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "Replying to @harper: calm down, you clown. get lost #fun29 Also, read before you post"}'
+   sudo nano /etc/nginx/sites-available/toxictext-scanner
+   ```
+   Add:
+   ```
+   server {
+       listen 80;
+       server_name <server-ip-or-domain>;
+       location / {
+           proxy_pass http://127.0.0.1:5001;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+       }
+   }
+   ```
+   Enable and restart Nginx:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/toxictext-scanner /etc/nginx/sites-enabled/
+   sudo nginx -t
+   sudo systemctl restart nginx
+   ```
+
+4. **Test the API**:
+   ```bash
+   curl -X GET http://<server-ip-or-domain>/health
+   ```
+   Expected response:
+   ```json
+   {"status": "ok"}
+   ```
+   ```bash
+   curl -X POST http://<server-ip-or-domain>/classify -H "Content-Type: application/json" -d '{"text": "Replying to @harper: calm down, you clown. get lost #fun29 Also, read before you post"}'
    ```
    Expected response:
    ```json
    {
      "label": "Offensive Language",
      "confidence": 0.86,
-     "explanation": "Flagged for offensive language based on terms: move, shut, absolute",
+     "explanation": "Flagged for offensive language based on terms: clown, get lost",
+     "influential_terms": ["clown", "get", "lost"]
    }
    ```
-   Stop Gunicorn:
+
+5. **Scaling**:
+   Edit `ecosystem.config.js` to increase workers or instances:
    ```bash
-   pkill -f gunicorn
+   nano inference/ecosystem.config.js
    ```
-
-## Dockerization
-Containerize the inference API for CPU-based production deployment:
-1. **Prepare Files**:
-   - Ensure `inference/` contains `app.py`, `toxic_text_scanner.py`, `config.py`, `requirements.txt`, `model.joblib`, `vectorizer.joblib`.
-   - Ensure `Dockerfile` and `docker-compose.yml` are in the project root.
-
-2. **Build and Deploy**:
-   ```bash
-   cd /home/branch/projects/toxictext-scanner
-   sudo apt update
-   sudo apt install docker.io docker-compose
-   sudo systemctl start docker
-   sudo systemctl enable docker
-   docker-compose up -d
-   docker ps
+   Update:
    ```
-
-3. **Test the API**:
-   ```bash
-   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   args: '--workers=8 --bind=0.0.0.0:5001 app:app',
+   instances: 2,
+   exec_mode: 'cluster'
    ```
-
-4. **Stop Docker**:
+   Reload:
    ```bash
-   docker-compose down
+   pm2 reload toxictext-scanner
    ```
 
 ## Dataset Structure
@@ -209,11 +243,21 @@ Validation files (`training/data/hate_speech_verify.csv`, `training/data/offensi
    Rerun `train_model.py` if missing.
 - **Dependency Issues**:
    ```bash
-   pip install pandas==2.2.3 scikit-learn==1.3.0 nltk==3.9.1 numpy==1.26.4 joblib==1.4.2 tqdm==4.66.5 transformers==4.44.2
+   pip install flask==3.0.3 nltk==3.9.1 numpy==1.26.4 joblib==1.4.2 gunicorn==23.0.0 flask-limiter==3.8.0 scikit-learn==1.5.2
    ```
-- **Docker Issues**:
+- **NLTK Issues**:
    ```bash
-   docker logs toxictext-scanner
+   cd inference
+   rm -rf ./nltk_data
+   python3 -m nltk.downloader -d ./nltk_data stopwords wordnet punkt_tab
+   pm2 restart toxictext-scanner
    ```
-
-**Verification Code**: 2N8P6Z4X
+- **PM2 Issues**:
+   Check logs:
+   ```bash
+   pm2 logs toxictext-scanner
+   ```
+   Restart:
+   ```bash
+   pm2 restart toxictext-scanner
+   ```
