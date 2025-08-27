@@ -11,49 +11,69 @@ from config import CONFIG
 import os
 
 # Set NLTK data path
-nltk.data.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
+nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
 
 # Download required NLTK data
-nltk.download('punkt', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
-nltk.download('punkt_tab', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
-nltk.download('stopwords', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
-nltk.download('wordnet', quiet=True, download_dir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data'))
+nltk.download('punkt', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
+nltk.download('punkt_tab', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
+nltk.download('stopwords', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
+nltk.download('wordnet', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
 
 class ToxicTextVerifier:
     def __init__(self):
-        self.model_path = CONFIG['model_path']
-        self.vectorizer_path = CONFIG['vectorizer_path']
-        self.classifier = joblib.load(self.model_path)
-        self.vectorizer = joblib.load(self.vectorizer_path)
-        self.lemmatizer = WordNetLemmatizer()
-        self.stop_words = set(stopwords.words('english'))
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
+        self.lemmatizer = WordNetLemmatizer()
+        # Load English resources
+        self.model_path_en = CONFIG['model_path']
+        self.vectorizer_path_en = CONFIG['vectorizer_path']
+        self.classifier_en = joblib.load(self.model_path_en)
+        self.vectorizer_en = joblib.load(self.vectorizer_path_en)
+        try:
+            self.stop_words_en = set(stopwords.words('english'))
+        except LookupError:
+            self.stop_words_en = set()
+        # Load Arabic resources
+        self.model_path_ar = CONFIG['model_path_ar']
+        self.vectorizer_path_ar = CONFIG['vectorizer_path_ar']
+        self.classifier_ar = joblib.load(self.model_path_ar)
+        self.vectorizer_ar = joblib.load(self.vectorizer_path_ar)
+        try:
+            self.stop_words_ar = set(stopwords.words('arabic'))
+        except LookupError:
+            self.stop_words_ar = set()
 
-    def preprocess_text(self, text):
+    def preprocess_text(self, text, lang='en'):
         text = str(text).lower()
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
-        tokens = word_tokenize(text)
-        tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
+        if lang == 'en':
+            text = re.sub(r'[^a-zA-Z\s]', '', text)
+            tokens = word_tokenize(text)
+            tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
+        else:  # lang == 'ar'
+            text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
+            tokens = word_tokenize(text)
+            tokens = [token for token in tokens if token not in self.stop_words_ar]
         return ' '.join(tokens)
 
-    def verify(self):
-        # Define validation files and their corresponding labels
+    def verify(self, lang='en'):
+        # Define validation files based on language
+        data_dir = 'data_arabic' if lang == 'ar' else 'data'
         data_files = [
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'hate_speech_verify.csv'), 'Hate Speech', 0),
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'offensive_language_verify.csv'), 'Offensive Language', 1),
-            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'neutral_verify.csv'), 'Neutral', 2)
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'hate_speech_verify.csv'), 'Hate Speech', 0),
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'offensive_language_verify.csv'), 'Offensive Language', 1),
+            (os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), data_dir, 'neutral_verify.csv'), 'Neutral', 2)
         ]
         dfs = []
         
         for file_path, class_name, class_id in data_files:
-            print(f"Loading validation data from {file_path}...")
-            # Read file assuming it contains only tweets (one per line, no header)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                tweets = [line.strip() for line in f if line.strip()]
-            
-            # Create DataFrame with required columns
+            print(f"Loading {lang} validation data from {file_path}...")
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    tweets = [line.strip() for line in f if line.strip()]
+            except FileNotFoundError:
+                print(f"Warning: {file_path} not found, skipping...")
+                continue
             df = pd.DataFrame({
                 'tweet': tweets,
                 'class': [class_name] * len(tweets),
@@ -63,6 +83,10 @@ class ToxicTextVerifier:
                 'neither_count': [1 if class_name == 'Neutral' else 0] * len(tweets)
             })
             dfs.append(df)
+        
+        if not dfs:
+            print(f"No validation data found for {lang}, aborting verification.")
+            return
         
         # Combine data
         df = pd.concat(dfs, ignore_index=True)
@@ -76,25 +100,27 @@ class ToxicTextVerifier:
             'offensive': 1,
             'neither': 2
         }
-        print("Mapping string labels to numeric values...")
+        print(f"Mapping {lang} string labels to numeric values...")
         df['class'] = df['class'].map(label_map)
         
         # Preprocess text
-        print("Preprocessing text...")
-        df['processed_tweet'] = [self.preprocess_text(text) for text in df['tweet']]
+        print(f"Preprocessing {lang} text...")
+        df['processed_tweet'] = [self.preprocess_text(text, lang=lang) for text in df['tweet']]
         
         # Vectorize
-        print("Vectorizing text...")
-        X = self.vectorizer.transform(df['processed_tweet'])
+        print(f"Vectorizing {lang} text...")
+        vectorizer = self.vectorizer_ar if lang == 'ar' else self.vectorizer_en
+        classifier = self.classifier_ar if lang == 'ar' else self.classifier_en
+        X = vectorizer.transform(df['processed_tweet'])
         y_true = df['class']
         
         # Predict
-        print("Making predictions...")
-        y_pred = self.classifier.predict(X)
-        y_proba = self.classifier.predict_proba(X)
+        print(f"Making predictions for {lang}...")
+        y_pred = classifier.predict(X)
+        y_proba = classifier.predict_proba(X)
         
         # Classification report
-        print("Classification Summary:")
+        print(f"\n{lang.upper()} Classification Summary:")
         report = classification_report(y_true, y_pred, target_names=self.class_names, output_dict=True)
         for class_name in self.class_names:
             correct = int(report[class_name]['support'] * report[class_name]['recall'])
@@ -102,8 +128,8 @@ class ToxicTextVerifier:
             print(f"{class_name}: {correct}/{total} correct ({report[class_name]['recall']*100:.2f}%)")
         
         # Top influential terms
-        print("\nTop Influential Terms by Predicted Class:")
-        feature_names = self.vectorizer.get_feature_names_out()
+        print(f"\nTop Influential Terms by Predicted Class ({lang}):")
+        feature_names = vectorizer.get_feature_names_out()
         for class_idx, class_name in enumerate(self.class_names):
             class_mask = (y_pred == class_idx)
             if class_mask.sum() > 0:
@@ -113,7 +139,7 @@ class ToxicTextVerifier:
                 print(f"{class_name}: {top_terms}")
         
         # Misclassified examples
-        print("\nMisclassified Examples (first 5):")
+        print(f"\nMisclassified Examples (first 5, {lang}):")
         misclassified = y_true != y_pred
         misclassified_indices = np.where(misclassified)[0]
         for idx in misclassified_indices[:5]:
@@ -130,4 +156,7 @@ class ToxicTextVerifier:
 
 if __name__ == "__main__":
     verifier = ToxicTextVerifier()
-    verifier.verify()
+    print("Verifying English model...")
+    verifier.verify(lang='en')
+    print("\nVerifying Arabic model...")
+    verifier.verify(lang='ar')
