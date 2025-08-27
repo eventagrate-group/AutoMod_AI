@@ -34,10 +34,14 @@ class ToxicTextTrainerArabic:
         except LookupError:
             self.stop_words = set()
         # Initialize Stanza pipeline if available
-        self.use_stanza = stanza is not None
-        if self.use_stanza:
+        self.use_stanza = False  # Temporarily disable Stanza due to resource error
+        if self.use_stanza and stanza is not None:
             print("Initializing Stanza pipeline for Arabic...")
-            self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, download_method=None)
+            try:
+                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=os.path.expanduser("~/stanza_resources"))
+            except Exception as e:
+                print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
+                self.use_stanza = False
         # Initialize or load vectorizer
         if os.path.exists(self.vectorizer_path):
             print(f"Loading existing vectorizer from {self.vectorizer_path}...")

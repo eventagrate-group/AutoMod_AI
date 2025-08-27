@@ -27,10 +27,14 @@ class ToxicTextVerifier:
     def __init__(self):
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         self.lemmatizer = WordNetLemmatizer()
-        self.use_stanza = stanza is not None
-        if self.use_stanza:
+        self.use_stanza = False  # Temporarily disable Stanza due to resource error
+        if self.use_stanza and stanza is not None:
             print("Initializing Stanza pipeline for Arabic...")
-            self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, download_method=None)
+            try:
+                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=os.path.expanduser("~/stanza_resources"))
+            except Exception as e:
+                print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
+                self.use_stanza = False
         try:
             self.stop_words_en = set(stopwords.words('english'))
             self.stop_words_ar = set(stopwords.words('arabic'))
