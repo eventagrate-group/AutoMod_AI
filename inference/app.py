@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from toxic_text_scanner import ToxicTextScanner
 import os
+from config import CONFIG
 
 app = Flask(__name__)
 # Set NLTK data path
@@ -28,5 +29,7 @@ def classify():
     return jsonify(result), 200
 
 if __name__ == "__main__":
-    # Useful for local debugging only; production uses gunicorn
-    app.run(host="0.0.0.0", port=CONFIG['port'], debug=CONFIG['debug'])
+    # Useful for local debugging; production uses gunicorn/PM2
+    port = CONFIG.get('port', 5001)  # Default to 5001 if not in CONFIG
+    debug = CONFIG.get('debug', False)  # Default to False
+    app.run(host="0.0.0.0", port=port, debug=debug)

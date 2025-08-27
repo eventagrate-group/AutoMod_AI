@@ -8,6 +8,10 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from config import CONFIG
 from langdetect import detect, LangDetectException
+try:
+    import stanza
+except ImportError:
+    stanza = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
@@ -15,23 +19,25 @@ nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nlt
 class ToxicTextScanner:
     def __init__(self):
         try:
-            # English model
             self.vectorizer_en = joblib.load(CONFIG['vectorizer_path'])
             self.classifier_en = joblib.load(CONFIG['model_path'])
-            # Arabic model
             self.vectorizer_ar = joblib.load(CONFIG['vectorizer_path_ar'])
             self.classifier_ar = joblib.load(CONFIG['model_path_ar'])
-            # English preprocessing
             self.lemmatizer = WordNetLemmatizer()
             try:
                 self.stop_words_en = set(stopwords.words('english'))
-            except LookupError:
-                self.stop_words_en = set()
-            # Arabic preprocessing
-            try:
                 self.stop_words_ar = set(stopwords.words('arabic'))
             except LookupError:
+                self.stop_words_en = set()
                 self.stop_words_ar = set()
+            self.use_stanza = True  # Enable Stanza for Arabic
+            if self.use_stanza and stanza is not None:
+                print("Initializing Stanza pipeline for Arabic on CPU...")
+                try:
+                    self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=os.path.expanduser("~/stanza_resources"))
+                except Exception as e:
+                    print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
+                    self.use_stanza = False
             self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
             print(f"Failed to initialize scanner: {str(e)}")
@@ -39,39 +45,38 @@ class ToxicTextScanner:
 
     def preprocess_text(self, text, lang='en'):
         text = str(text).lower()
-        # Remove URLs and mentions
         text = re.sub(r'http\S+|www\S+', '', text)
         text = re.sub(r'@\w+', '', text)
-        # Language-specific preprocessing
         if lang == 'en':
-            text = re.sub(r'[^a-zA-Z\s]', '', text)  # Keep English letters
+            text = re.sub(r'[^a-zA-Z\s]', '', text)
             tokens = word_tokenize(text)
             tokens = [self.lemmatizer.lemmatize(t) for t in tokens if t not in self.stop_words_en]
-        else:  # lang == 'ar'
-            text = re.sub(r'[^\u0600-\u06FF\s]', '', text)  # Keep Arabic characters
-            tokens = word_tokenize(text)
-            tokens = [t for t in tokens if t not in self.stop_words_ar]  # No lemmatization for Arabic
+        else:
+            text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
+            if self.use_stanza:
+                doc = self.nlp(text)
+                tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+            else:
+                tokens = word_tokenize(text)
+                tokens = [t for t in tokens if t not in self.stop_words_ar]
         return ' '.join(tokens)
 
     def classify_text(self, text):
         try:
-            # Detect language
             try:
                 lang = detect(text)
             except LangDetectException:
-                lang = 'en'  # Default to English
-            # Preprocess and classify
+                lang = 'en'
             processed_text = self.preprocess_text(text, lang=lang)
             if lang == 'ar':
                 X = self.vectorizer_ar.transform([processed_text])
                 classifier = self.classifier_ar
-            else:  # Default to English
+            else:
                 X = self.vectorizer_en.transform([processed_text])
                 classifier = self.classifier_en
             prediction = classifier.predict(X)[0]
             probabilities = classifier.predict_proba(X)[0]
             confidence = float(np.max(probabilities))
-            # Get influential terms
             feature_names = self.vectorizer_ar.get_feature_names_out() if lang == 'ar' else self.vectorizer_en.get_feature_names_out()
             row = X.toarray()[0]
             top_idx = row.argsort()[-3:][::-1]

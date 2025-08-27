@@ -11,8 +11,10 @@ from config import CONFIG
 import os
 try:
     import stanza
+    import torch
 except ImportError:
     stanza = None
+    torch = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'nltk_data')))
@@ -27,11 +29,12 @@ class ToxicTextVerifier:
     def __init__(self):
         self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         self.lemmatizer = WordNetLemmatizer()
-        self.use_stanza = False  # Temporarily disable Stanza due to resource error
+        self.use_stanza = True  # Enable Stanza
+        self.device = 'cuda' if torch is not None and torch.cuda.is_available() else 'cpu'
         if self.use_stanza and stanza is not None:
-            print("Initializing Stanza pipeline for Arabic...")
+            print(f"Initializing Stanza pipeline for Arabic on {self.device}...")
             try:
-                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=os.path.expanduser("~/stanza_resources"))
+                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=os.path.expanduser("~/stanza_resources"))
             except Exception as e:
                 print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
                 self.use_stanza = False
@@ -52,23 +55,28 @@ class ToxicTextVerifier:
         self.classifier_ar = joblib.load(self.model_path_ar)
         self.vectorizer_ar = joblib.load(self.vectorizer_path_ar)
 
-    def preprocess_text(self, text, lang='en'):
-        text = str(text).lower()
-        text = re.sub(r'http\S+|www\S+', '', text)
-        text = re.sub(r'@\w+', '', text)
-        if lang == 'en':
-            text = re.sub(r'[^a-zA-Z\s]', '', text)
-            tokens = word_tokenize(text)
-            tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
-        else:  # lang == 'ar'
-            text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-            if self.use_stanza:
-                doc = self.nlp(text)
-                tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
-            else:
+    def preprocess_text(self, texts, lang='en'):
+        if not isinstance(texts, list):
+            texts = [texts]
+        processed_texts = []
+        for text in texts:
+            text = str(text).lower()
+            text = re.sub(r'http\S+|www\S+', '', text)
+            text = re.sub(r'@\w+', '', text)
+            if lang == 'en':
+                text = re.sub(r'[^a-zA-Z\s]', '', text)
                 tokens = word_tokenize(text)
-                tokens = [token for token in tokens if token not in self.stop_words_ar]
-        return ' '.join(tokens)
+                tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
+            else:
+                text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
+                if self.use_stanza:
+                    doc = self.nlp(text)
+                    tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+                else:
+                    tokens = word_tokenize(text)
+                    tokens = [token for token in tokens if token not in self.stop_words_ar]
+            processed_texts.append(' '.join(tokens))
+        return processed_texts if len(texts) > 1 else processed_texts[0]
 
     def verify(self, lang='en'):
         data_dir = os.path.dirname(CONFIG['new_data_path']) if lang == 'en' else os.path.dirname(CONFIG['new_data_path_ar'])
@@ -117,7 +125,12 @@ class ToxicTextVerifier:
         df['class'] = df['class'].map(label_map)
         
         print(f"Preprocessing {lang} text...")
-        df['processed_tweet'] = [self.preprocess_text(text, lang=lang) for text in df['tweet']]
+        batch_size = 100
+        processed_tweets = []
+        for i in range(0, len(df), batch_size):
+            batch = df['tweet'][i:i + batch_size].tolist()
+            processed_tweets.extend(self.preprocess_text(batch, lang=lang))
+        df['processed_tweet'] = processed_tweets
         
         print(f"Vectorizing {lang} text...")
         vectorizer = self.vectorizer_ar if lang == 'ar' else self.vectorizer_en
