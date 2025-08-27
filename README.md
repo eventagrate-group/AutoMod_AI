@@ -45,7 +45,7 @@ toxictext-scanner/
 ## Setup
 1. **Clone the Repository**:
    ```bash
-   git clone <repository-url>
+   git clone git@github.com:eventagrate-group/toxictext-scanner.git
    cd toxictext-scanner
    ```
 
