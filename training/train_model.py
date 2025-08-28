@@ -14,13 +14,13 @@ from config import CONFIG
 from tqdm import tqdm
 
 # Set NLTK data path
-nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "../inference/nltk_data")))
+nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
 
 # Download required NLTK data
-nltk.download('punkt', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "../inference/nltk_data")))
-nltk.download('punkt_tab', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "../inference/nltk_data")))
-nltk.download('stopwords', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "../inference/nltk_data")))
-nltk.download('wordnet', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "../inference/nltk_data")))
+nltk.download('punkt', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
+nltk.download('punkt_tab', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
+nltk.download('stopwords', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
+nltk.download('wordnet', quiet=True, download_dir=os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
 
 class ToxicTextTrainer:
     def __init__(self):
