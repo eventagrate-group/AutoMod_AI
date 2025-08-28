@@ -100,7 +100,6 @@ class ToxicTextScanner:
                     f"Flagged for {self.class_names[prediction].lower()} "
                     f"based on terms: {', '.join(influential_terms) or 'n/a'}"
                 ),
-                "influential_terms": influential_terms
             }
         except Exception as e:
             return {"error": f"Classification failed: {str(e)}"}
