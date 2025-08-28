@@ -28,15 +28,22 @@ class ToxicTextScanner:
                 self.stop_words_en = set(stopwords.words('english'))
                 self.stop_words_ar = set(stopwords.words('arabic'))
             except LookupError:
+                print("Warning: NLTK stopwords not found. Using empty stopword sets.")
                 self.stop_words_en = set()
                 self.stop_words_ar = set()
-            self.use_stanza = True  # Enable Stanza for Arabic
-            if self.use_stanza and stanza is not None:
+            self.use_stanza = True if stanza is not None else False
+            self.nlp = None
+            if self.use_stanza:
                 print("Initializing Stanza pipeline for Arabic on CPU...")
                 try:
-                    self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=os.path.expanduser("~/stanza_resources"))
+                    stanza_dir = os.path.expanduser("~/stanza_resources")
+                    if not os.path.exists(stanza_dir):
+                        print(f"Stanza resources not found at {stanza_dir}. Downloading...")
+                        stanza.download('ar', processors='tokenize,lemma', dir=stanza_dir)
+                    self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=stanza_dir)
+                    print("Stanza pipeline initialized successfully.")
                 except Exception as e:
-                    print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
+                    print(f"Failed to initialize Stanza: {e}. Falling back to NLTK for Arabic.")
                     self.use_stanza = False
             self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
@@ -53,9 +60,14 @@ class ToxicTextScanner:
             tokens = [self.lemmatizer.lemmatize(t) for t in tokens if t not in self.stop_words_en]
         else:
             text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-            if self.use_stanza:
-                doc = self.nlp(text)
-                tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+            if self.use_stanza and self.nlp is not None:
+                try:
+                    doc = self.nlp(text)
+                    tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+                except Exception as e:
+                    print(f"Stanza preprocessing failed: {e}. Falling back to NLTK for Arabic.")
+                    tokens = word_tokenize(text)
+                    tokens = [t for t in tokens if t not in self.stop_words_ar]
             else:
                 tokens = word_tokenize(text)
                 tokens = [t for t in tokens if t not in self.stop_words_ar]
