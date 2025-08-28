@@ -19,7 +19,7 @@ def classify():
     if not isinstance(text, str) or not text.strip():
         return jsonify({"error": "Provide a non-empty 'text' string"}), 400
 
-    result = scanner.classify_text(text)
+    result = scanner.classify(text)
 
     # If the scanner returned an error, pass it through
     if isinstance(result, dict) and "error" in result:
