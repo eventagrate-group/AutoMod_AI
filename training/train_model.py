@@ -31,6 +31,7 @@ class ToxicTextTrainer:
         try:
             self.stop_words = set(stopwords.words('english'))
         except LookupError:
+            print("Warning: NLTK stopwords not found. Using empty stopword set.")
             self.stop_words = set()
         # Initialize or load vectorizer
         if os.path.exists(self.vectorizer_path):
@@ -38,20 +39,20 @@ class ToxicTextTrainer:
             self.vectorizer = joblib.load(self.vectorizer_path)
         else:
             print("Initializing new vectorizer...")
-            self.vectorizer = TfidfVectorizer(max_features=20000, ngram_range=(1, 2), min_df=2, max_df=0.95, sublinear_tf=True)
+            self.vectorizer = TfidfVectorizer(max_features=10000, ngram_range=(1, 2), min_df=2, max_df=0.95, sublinear_tf=True)
         # Initialize or load classifier
         if os.path.exists(self.model_path):
             print(f"Loading existing model from {self.model_path}...")
             self.classifier = joblib.load(self.model_path)
         else:
             print("Initializing new classifier...")
-            self.classifier = SGDClassifier(loss='log_loss', max_iter=1, tol=None, random_state=42, warm_start=True)
+            self.classifier = SGDClassifier(loss='log_loss', max_iter=20, tol=1e-3, alpha=0.0001, random_state=42, warm_start=True)
 
     def preprocess_text(self, text):
         text = str(text).lower()
-        text = re.sub(r'http\S+|www\S+', '', text)
-        text = re.sub(r'@\w+', '', text)
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
+        text = re.sub(r'http\S+|www\S+', '', text)  # Remove URLs
+        text = re.sub(r'@\w+', '', text)  # Remove mentions
+        text = re.sub(r'[^a-zA-Z\s]', '', text)  # Keep only letters and spaces
         tokens = word_tokenize(text)
         tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words]
         return ' '.join(tokens)
@@ -121,6 +122,25 @@ class ToxicTextTrainer:
         y_pred = self.classifier.predict(X_eval)
         print("Model Performance on Sample:")
         print(classification_report(y_eval, y_pred, target_names=self.class_names))
+        # Evaluate on validation files
+        print("Evaluating model on validation files...")
+        validation_files = {
+            'Hate Speech': os.path.join(os.path.dirname(csv_path), 'hate_speech_verify.csv'),
+            'Offensive Language': os.path.join(os.path.dirname(csv_path), 'offensive_language_verify.csv'),
+            'Neutral': os.path.join(os.path.dirname(csv_path), 'neutral_verify.csv')
+        }
+        for class_name, file_path in validation_files.items():
+            if os.path.exists(file_path):
+                df_val = pd.read_csv(file_path, header=None, names=['tweet'])
+                df_val['processed_tweet'] = [self.preprocess_text(text) for text in tqdm(df_val['tweet'], desc=f"Preprocessing {class_name} validation")]
+                X_val = self.vectorizer.transform(df_val['processed_tweet'])
+                y_val = [self.class_names.index(class_name)] * len(df_val)
+                y_pred = self.classifier.predict(X_val)
+                correct = sum(y_pred == y_val)
+                total = len(y_val)
+                print(f"{class_name}: {correct}/{total} correct ({correct/total*100:.2f}%)")
+            else:
+                print(f"Validation file {file_path} not found.")
 
 if __name__ == "__main__":
     trainer = ToxicTextTrainer()
