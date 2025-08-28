@@ -47,7 +47,7 @@ class ToxicTextTrainerArabic:
                 if not os.path.exists(stanza_dir):
                     print(f"Stanza resources not found at {stanza_dir}. Downloading...")
                     stanza.download('ar', processors='tokenize,lemma', dir=stanza_dir)
-                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=stanza_dir)
+                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=stanza_dir, batch_size=64)
             except Exception as e:
                 print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
                 self.use_stanza = False
