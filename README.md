@@ -1,36 +1,50 @@
 # ToxicTextScanner
 
-ToxicTextScanner is a machine learning-based REST API for classifying short-form text (e.g., tweets) as `Hate Speech`, `Offensive Language`, or `Neutral / Clean`. It uses a `SGDClassifier` with TF-IDF features (`max_features=10000`, L2 regularization `alpha=0.0001`) for robust classification, supports incremental learning for model updates, and provides a Flask API for real-time inference. The system is designed to run locally to optimize cost, control, and data privacy. By training and deploying locally, you avoid recurring expenses from public payable APIs, maintain full control over model customization and updates, and ensure sensitive text data remains secure on your infrastructure. Local development also allows for faster iteration, tailored preprocessing, and integration with existing systems without reliance on external services.
+ToxicTextScanner is a machine learning-based REST API for classifying short-form text (e.g., tweets) in **English** and **Arabic** as `Hate Speech`, `Offensive Language`, or `Neutral / Clean`. It leverages a `SGDClassifier` with TF-IDF features (`max_features=10000`, L2 regularization `alpha=0.0001`) for robust classification, supports incremental learning for model updates, and provides a Flask API for real-time inference. The system uses NLTK for English preprocessing and Stanza for Arabic preprocessing, with GPU acceleration for training to handle large datasets efficiently. Designed to run locally, it optimizes cost, control, and data privacy, avoiding recurring expenses from public APIs, ensuring full control over model customization, and keeping sensitive text data secure on your infrastructure. Local development enables faster iteration, tailored preprocessing, and seamless integration with existing systems.
 
 ## Project Structure
 ```
 toxictext-scanner/
 ├── training/
 │   ├── data/
-│   │   ├── new_training_data.csv     # Training dataset
-│   │   ├── hate_speech_verify.csv    # Validation data for Hate Speech
-│   │   ├── offensive_language_verify.csv # Validation data for Offensive Language
-│   │   ├── neutral_verify.csv        # Validation data for Neutral
-│   ├── train_model.py                # Initial and incremental training with SGDClassifier
-│   ├── generate_synthetic_data.py    # Synthetic data generation script
-│   ├── config.py                    # Configuration for dataset and model paths
-│   ├── requirements.txt             # Dependencies (pandas, scikit-learn, nltk, etc.)
+│   │   ├── new_training_data.csv           # English training dataset
+│   │   ├── hate_speech_verify.csv          # English validation data for Hate Speech
+│   │   ├── offensive_language_verify.csv   # English validation data for Offensive Language
+│   │   ├── neutral_verify.csv             # English validation data for Neutral
+│   ├── data_arabic/
+│   │   ├── new_training_data.csv           # Arabic training dataset (1M rows)
+│   │   ├── hate_speech_verify.csv          # Arabic validation data for Hate Speech
+│   │   ├── offensive_language_verify.csv   # Arabic validation data for Offensive Language
+│   │   ├── neutral_verify.csv             # Arabic validation data for Neutral
+│   ├── train_model.py                     # English training with SGDClassifier
+│   ├── train_model_ar.py                  # Arabic training with SGDClassifier and Stanza
+│   ├── verify_model.py                    # Verification for English and Arabic models
+│   ├── generate_synthetic_data.py         # Synthetic data generation script
+│   ├── config.py                         # Configuration for dataset and model paths
+│   ├── requirements.txt                  # Dependencies (pandas, scikit-learn, nltk, stanza, etc.)
 ├── inference/
-│   ├── toxic_text_scanner.py        # Core preprocessing and classification logic
-│   ├── app.py                      # Flask API for text classification
-│   ├── config.py                   # API and model configuration
-│   ├── requirements.txt            # Dependencies (flask, nltk, joblib, etc.)
-│   ├── model.joblib                # Trained SGDClassifier model
-│   ├── vectorizer.joblib           # Trained TF-IDF vectorizer
-│   ├── ecosystem.config.js          # PM2 configuration for production
-├── README.md                       # This file
+│   ├── toxic_text_scanner.py             # Core preprocessing and classification (English and Arabic)
+│   ├── app.py                           # Flask API for text classification
+│   ├── config.py                        # API and model configuration
+│   ├── requirements.txt                 # Dependencies (flask, nltk, joblib, etc.)
+│   ├── model.joblib                     # Trained SGDClassifier model (English)
+│   ├── vectorizer.joblib                # Trained TF-IDF vectorizer (English)
+│   ├── model_ar.joblib                  # Trained SGDClassifier model (Arabic)
+│   ├── vectorizer_ar.joblib             # Trained TF-IDF vectorizer (Arabic)
+│   ├── ecosystem.config.js              # PM2 configuration for production
+│   ├── nltk_data/                       # NLTK data (stopwords, punkt_tab, etc.)
+├── README.md                            # This file
 ```
 
 ## Features
-- **Text Classification**: Labels text as `Hate Speech` (0), `Offensive Language` (1), or `Neutral` (2) with confidence scores and dynamic explanations based on TF-IDF feature weights.
+- **Text Classification**: Labels text in **English** and **Arabic** as `Hate Speech` (0), `Offensive Language` (1), or `Neutral` (2) with confidence scores and dynamic explanations based on TF-IDF feature weights.
+- **Language Detection**: Uses `langdetect` to automatically detect English or Arabic input for appropriate preprocessing and model selection.
+- **Preprocessing**:
+  - **English**: NLTK tokenization (`word_tokenize`), stopword removal, and lemmatization (`WordNetLemmatizer`).
+  - **Arabic**: Stanza pipeline for tokenization and lemmatization (GPU-enabled for training, CPU for inference), with NLTK fallback if Stanza fails.
 - **Incremental Learning**: Updates the `SGDClassifier` using `partial_fit`, preserving the initial TF-IDF vocabulary for consistency.
 - **REST API**: Flask endpoints (`/classify` for text classification, `/health` for service status) for real-time inference.
-- **Performance Metrics**: Reports precision, recall, F1-score, and accuracy after training/incremental training.
+- **Performance Metrics**: Reports precision, recall, F1-score, and accuracy after training and verification.
 - **PM2 Deployment**: Uses PM2 for process management, enabling easy scaling and monitoring in production.
 
 ## Prerequisites
@@ -40,7 +54,8 @@ toxictext-scanner/
 - Nginx (for reverse proxy)
 - Git
 - Sufficient memory (8–16 GB RAM for training 1M rows)
-- Internet connection for NLTK data
+- GPU with CUDA support (recommended for English and Arabic training with Stanza)
+- Internet connection for NLTK and Stanza data
 
 ## Setup
 1. **Clone the Repository**:
@@ -74,6 +89,7 @@ toxictext-scanner/
      joblib==1.4.2
      tqdm==4.66.5
      transformers==4.44.2
+     stanza==1.10.0
      ```
    - For inference:
      ```bash
@@ -92,18 +108,21 @@ toxictext-scanner/
      gunicorn==23.0.0
      flask-limiter==3.8.0
      scikit-learn==1.5.2
+     langdetect==1.0.9
+     stanza==1.10.0
      ```
 
-4. **Download NLTK Data**:
+4. **Download NLTK and Stanza Data**:
    ```bash
    cd inference
    source venv/bin/activate
    python3 -m nltk.downloader -d ./nltk_data stopwords wordnet punkt_tab
+   python3 -c "import stanza; stanza.download('ar', processors='tokenize,lemma')"
    ```
 
 ## Training
-### Initial and Incremental Training
-The training process leverages several libraries for efficient data processing and model updates:
+### English Training
+The English training process uses NLTK for preprocessing and Scikit-Learn for feature extraction and classification:
 - **Data Loading with Pandas**: Loads CSV datasets (e.g., `training/data/new_training_data.csv`) into DataFrames, handling column renaming and label mapping (e.g., 'Hate Speech' to 0).
 - **Text Preprocessing with NLTK**: Uses tokenization (`word_tokenize`), stopword removal, and lemmatization (`WordNetLemmatizer`) to clean text data.
 - **Feature Extraction with Scikit-Learn**: Applies `TfidfVectorizer` (`max_features=10000`, `ngram_range=(1, 2)`) to convert text into TF-IDF features.
@@ -111,14 +130,13 @@ The training process leverages several libraries for efficient data processing a
 - **Progress Tracking with tqdm**: Displays progress bars for preprocessing and training.
 - **Serialization with Joblib**: Saves the model (`model.joblib`) and vectorizer (`vectorizer.joblib`) to `inference/`.
 
-Run training (initial or incremental):
+Run English training:
 ```bash
 cd training
 source venv/bin/activate
 python3 train_model.py
 ```
 - If `model.joblib` and `vectorizer.joblib` exist, the script loads them for incremental updates.
-- New data is processed in chunks, and the model is updated with `partial_fit`.
 - Performance is evaluated on a 20% sample with precision, recall, F1-score, and accuracy.
 
 **Example Output** (300,000 rows):
@@ -144,16 +162,101 @@ weighted avg      0.93      0.93      0.93     60000
 Model saved to inference/model.joblib
 ```
 
+### Arabic Training
+The Arabic training process uses Stanza for preprocessing (GPU-enabled for faster training) and the same Scikit-Learn pipeline as English:
+- **Data Loading with Pandas**: Loads CSV dataset (`training/data_arabic/new_training_data.csv`, 1M rows, 333,333 per class).
+- **Text Preprocessing with Stanza**: Uses Stanza for tokenization and lemmatization with GPU support for training and CPU for inference. Falls back to NLTK if Stanza fails.
+- **Feature Extraction and Training**: Same as English, with separate `model_ar.joblib` and `vectorizer_ar.joblib`.
+- **Serialization with Joblib**: Saves the model (`model_ar.joblib`) and vectorizer (`vectorizer_ar.joblib`) to `inference/`.
+
+Run Arabic training:
+```bash
+cd training
+source venv/bin/activate
+python3 train_model_ar.py
+```
+
+**Example Output** (1,000,000 rows):
+```
+Initializing Stanza pipeline for Arabic on cuda...
+...
+Initializing new vectorizer...
+Initializing new classifier...
+Starting incremental training with training/data_arabic/new_training_data.csv...
+Processing chunk of size 10000...
+Preprocessing chunk: 100%|██████████| 10000/10000 [00:25<00:00, 400.00it/s]
+Fitting vectorizer on first chunk...
+Vectorizer saved to inference/vectorizer_ar.joblib
+Updating model with partial_fit...
+[Repeated for 100 chunks]
+Model saved to inference/model_ar.joblib
+Evaluating model on a sample...
+Model Performance:
+               precision    recall  f1-score   support
+Hate Speech       0.82      0.81      0.81     66666
+Offensive Language 0.85      0.86      0.85     66666
+Neutral           0.83      0.83      0.83     66666
+accuracy                            0.83    200000
+macro avg         0.83      0.83      0.83    200000
+weighted avg      0.83      0.83      0.83    200000
+```
+
+### Verification
+Verify the performance of both English and Arabic models using `verify_model.py`, which evaluates on validation datasets (`training/data/*.csv` for English, `training/data_arabic/*.csv` for Arabic):
+```bash
+cd training
+source venv/bin/activate
+python3 verify_model.py
+```
+
+**Example Output**:
+```
+Verifying English model...
+Loading en validation data from training/data/hate_speech_verify.csv...
+Loading en validation data from training/data/offensive_language_verify.csv...
+Loading en validation data from training/data/neutral_verify.csv...
+EN Classification Summary:
+Hate Speech: 276/300 correct (92.00%)
+Offensive Language: 288/300 correct (96.00%)
+Neutral: 270/300 correct (90.00%)
+...
+Verifying Arabic model...
+Initializing Stanza pipeline for Arabic on cpu...
+Loading ar validation data from training/data_arabic/hate_speech_verify.csv...
+Loading ar validation data from training/data_arabic/offensive_language_verify.csv...
+Loading ar validation data from training/data_arabic/neutral_verify.csv...
+AR Classification Summary:
+Hate Speech: 243/300 correct (81.00%)
+Offensive Language: 258/300 correct (86.00%)
+Neutral: 249/300 correct (83.00%)
+```
+
 ### Improving Accuracy
-To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive Language, 90% for Neutral), generate or source additional diverse training data with clear distinctions between classes using `generate_synthetic_data.py`. Retrain incrementally to update the model.
+- **English**: To improve accuracy (currently 92% for Hate Speech, 96% for Offensive Language, 90% for Neutral), generate or source additional diverse training data using `generate_synthetic_data.py`. Retrain incrementally with `train_model.py`.
+- **Arabic**: To achieve >80% accuracy and non-zero recall for Hate Speech, ensure consistent Stanza preprocessing between training and inference. Source additional diverse Arabic data if needed.
 
 ## Inference
-1. **Install PM2**:
+The Flask API uses `langdetect` to automatically detect the input language (English or Arabic) and applies the appropriate model (`model.joblib` for English, `model_ar.joblib` for Arabic) via the same `/classify` endpoint, ensuring seamless bilingual support.
+
+1. **Run the Flask API Manually (for Testing)**:
+   ```bash
+   cd inference
+   source venv/bin/activate
+   python3 app.py
+   ```
+   Tests:
+   ```bash
+   curl -X GET http://localhost:5001/health
+   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "I want to kill Charlie Sheen."}'
+   curl -X POST http://localhost:5001/classify -H "Content-Type: application/json" -d '{"text": "أريد قتل شخص معين"}'
+   ```
+
+2. **Install PM2 (for Production)**:
    ```bash
    sudo npm install -g pm2
    ```
 
-2. **Run the Flask API with PM2**:
+3. **Run the Flask API with PM2**:
    ```bash
    cd inference
    source venv/bin/activate
@@ -163,7 +266,7 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
    ```
    Follow the `pm2 startup` output to enable PM2 on boot (e.g., `sudo systemctl enable pm2-ubuntu`).
 
-3. **Configure Nginx**:
+4. **Configure Nginx**:
    ```bash
    sudo nano /etc/nginx/sites-available/toxictext-scanner
    ```
@@ -171,7 +274,7 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
    ```
    server {
        listen 80;
-       server_name <server-ip-or-domain>;
+       server_name 172.31.26.143;
        location / {
            proxy_pass http://127.0.0.1:5001;
            proxy_set_header Host $host;
@@ -186,16 +289,16 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
    sudo systemctl restart nginx
    ```
 
-4. **Test the API**:
+5. **Test the API**:
    ```bash
-   curl -X GET http://<server-ip-or-domain>/health
+   curl -X GET http://172.31.26.143/health
    ```
    Expected response:
    ```json
    {"status": "ok"}
    ```
    ```bash
-   curl -X POST http://<server-ip-or-domain>/classify -H "Content-Type: application/json" -d '{"text": "Replying to @harper: calm down, you clown. get lost #fun29 Also, read before you post"}'
+   curl -X POST http://172.31.26.143/classify -H "Content-Type: application/json" -d '{"text": "Replying to @harper: calm down, you clown. get lost #fun29 Also, read before you post"}'
    ```
    Expected response:
    ```json
@@ -206,8 +309,20 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
      "influential_terms": ["clown", "get", "lost"]
    }
    ```
+   ```bash
+   curl -X POST http://172.31.26.143/classify -H "Content-Type: application/json" -d '{"text": "أريد قتل شخص معين"}'
+   ```
+   Expected response:
+   ```json
+   {
+     "label": "Hate Speech",
+     "confidence": 0.89,
+     "explanation": "Flagged for hate speech based on terms: قتل, شخص",
+     "influential_terms": ["قتل", "شخص"]
+   }
+   ```
 
-5. **Scaling**:
+6. **Scaling**:
    Edit `ecosystem.config.js` to increase workers or instances:
    ```bash
    nano inference/ecosystem.config.js
@@ -224,32 +339,35 @@ To further improve accuracy (currently 92% for Hate Speech, 96% for Offensive La
    ```
 
 ## Dataset Structure
-The dataset (e.g., `training/data/new_training_data.csv`) must have:
+The dataset (e.g., `training/data/new_training_data.csv` for English, `training/data_arabic/new_training_data.csv` for Arabic) must have:
 - `count`: Total annotations (e.g., 1).
 - `hate_speech_count`: 1 for Hate Speech, 0 otherwise.
 - `offensive_language_count`: 1 for Offensive Language, 0 otherwise.
 - `neither_count`: 1 for Neutral, 0 otherwise.
-- `class`: Label (0=Hate Speech, 1=Offensive Language, 2=Neutral, or strings: 'Hate Speech', 'Offensive Language', 'Neutral').
+- `class`: Label (0=Hate Speech, 1=Offensive Language, 2=Neutral, or strings: 'hate_speech', 'offensive_language', 'neutral').
 - `tweet`: Text content.
 
-Validation files (`training/data/hate_speech_verify.csv`, `training/data/offensive_language_verify.csv`, `training/data/neutral_verify.csv`) contain one tweet per line with no headers. String labels are mapped to numeric values in `train_model.py` and `verify_model.py`.
+Validation files (`training/data/*.csv` for English, `training/data_arabic/*.csv` for Arabic) contain one tweet per line with no headers. String labels are mapped to numeric values in `train_model.py`, `train_model_ar.py`, and `verify_model.py`.
 
 ## Troubleshooting
-- **Low Model Accuracy**: Source more diverse data with distinct features for Hate Speech, Offensive Language, and Neutral using `generate_synthetic_data.py`. Retrain with `train_model.py`.
+- **Low Model Accuracy**:
+  - **English**: Source more diverse data with distinct features using `generate_synthetic_data.py`. Retrain with `train_model.py`.
+  - **Arabic**: Ensure consistent Stanza preprocessing between training and inference. Source additional diverse Arabic data if needed.
 - **Missing Model Files**:
    ```bash
    ls -l inference/*.joblib
    ```
-   Rerun `train_model.py` if missing.
+   Rerun `train_model.py` or `train_model_ar.py` if missing.
 - **Dependency Issues**:
    ```bash
-   pip install flask==3.0.3 nltk==3.9.1 numpy==1.26.4 joblib==1.4.2 gunicorn==23.0.0 flask-limiter==3.8.0 scikit-learn==1.5.2
+   pip install flask==3.0.3 nltk==3.9.1 numpy==1.26.4 joblib==1.4.2 gunicorn==23.0.0 flask-limiter==3.8.0 scikit-learn==1.5.2 langdetect==1.0.9 stanza==1.10.0
    ```
-- **NLTK Issues**:
+- **NLTK/Stanza Issues**:
    ```bash
    cd inference
    rm -rf ./nltk_data
    python3 -m nltk.downloader -d ./nltk_data stopwords wordnet punkt_tab
+   python3 -c "import stanza; stanza.download('ar', processors='tokenize,lemma')"
    pm2 restart toxictext-scanner
    ```
 - **PM2 Issues**:
