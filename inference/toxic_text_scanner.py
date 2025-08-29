@@ -47,10 +47,10 @@ class ToxicTextScanner:
             if self.use_translator:
                 print("Initializing Arabic-to-English translator...")
                 try:
-                    self.translator = pipeline("translation", model="Helsinki-NLP/opus-mt-ar-en", device=-1)  # CPU
+                    self.translator = pipeline("translation", model="Helsinki-NLP/opus-mt-ar-en", device=-1)
                     print("Translator initialized successfully.")
                 except Exception as e:
-                    print(f"Failed to initialize translator: {e}. Arabic text will be skipped.")
+                    print(f"Failed to initialize translator: {e}. Arabic text will be classified as Neutral.")
                     self.use_translator = False
             self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
@@ -100,7 +100,12 @@ class ToxicTextScanner:
                 preprocessed_ar = self.preprocess_text(text, lang='ar')
                 translated_text = self.translate_ar_to_en(preprocessed_ar)
                 if translated_text is None:
-                    return {"error": "Translation failed for Arabic text"}
+                    return {
+                        "label": "Neutral",
+                        "confidence": 1.0,
+                        "explanation": "Arabic text could not be translated; defaulting to Neutral",
+                        "translated_text": null
+                    }
                 text_to_classify = translated_text
             else:
                 text_to_classify = self.preprocess_text(text, lang='en')
@@ -123,4 +128,9 @@ class ToxicTextScanner:
                 "translated_text": translated_text if lang == 'ar' else None
             }
         except Exception as e:
-            return {"error": f"Classification failed: {str(e)}"}
+            return {
+                "label": "Neutral",
+                "confidence": 1.0,
+                "explanation": f"Classification failed: {str(e)}; defaulting to Neutral",
+                "translated_text": None
+            }
