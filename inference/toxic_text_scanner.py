@@ -101,9 +101,7 @@ class ToxicTextScanner:
                 if translated_text is None:
                     return {
                         "label": "Neutral",
-                        "confidence": 1.0,
-                        "explanation": "Arabic text could not be translated; defaulting to Neutral",
-                        "translated_text": None
+                        "confidence": 1.0
                     }
                 text_to_classify = self.preprocess_text(translated_text, lang='en')
             else:
@@ -129,7 +127,5 @@ class ToxicTextScanner:
         except Exception as e:
             return {
                 "label": "Neutral",
-                "confidence": 1.0,
-                "explanation": f"Classification failed: {str(e)}; defaulting to Neutral",
-                "translated_text": None
+                "confidence": 1.0
             }

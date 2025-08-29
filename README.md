@@ -292,63 +292,49 @@ The Flask API uses `langdetect` to detect input language and applies the English
      ```json
      {
        "label": "Hate Speech",
-       "confidence": 0.90,
-       "explanation": "Flagged for hate speech based on terms: hate, people, religion",
-       "translated_text": null
+       "confidence": 0.90
      }
      ```
    - `"أكره الرجال بسبب دينهم"` (translates to "I hate men because of their religion"):
      ```json
      {
        "label": "Hate Speech",
-       "confidence": 0.90,
-       "explanation": "Flagged for hate speech based on terms: hate, men, religion",
-       "translated_text": "I hate men because of their religion"
+       "confidence": 0.90
      }
      ```
    - `"كلامك غبي ومستفز"` (translates to "Your speech is stupid and provocative"):
      ```json
      {
        "label": "Offensive Language",
-       "confidence": 0.95,
-       "explanation": "Flagged for offensive language based on terms: stupid, provocative",
-       "translated_text": "Your speech is stupid and provocative"
+       "confidence": 0.95
      }
      ```
    - `"اليوم هو يوم مشمس وجميل"` (translates to "Today is a sunny and beautiful day"):
      ```json
      {
        "label": "Neutral",
-       "confidence": 0.90,
-       "explanation": "Flagged for neutral based on terms: sunny, beautiful, day",
-       "translated_text": "Today is a sunny and beautiful day"
+       "confidence": 0.90
      }
      ```
    - `"لعنة الله على جميع المعلمين، يجب قتلهم"` (translates to "May God curse all teachers, they must be killed"):
      ```json
      {
        "label": "Hate Speech",
-       "confidence": 0.95,
-       "explanation": "Flagged for hate speech based on terms: curse, teachers, kill",
-       "translated_text": "May God curse all teachers, they must be killed"
+       "confidence": 0.95
      }
      ```
    - `"في كل مرة يظهر..."` (translates to "Every time litterers appear in the subway, chaos prevails..."):
      ```json
      {
        "label": "Hate Speech",
-       "confidence": 0.90,
-       "explanation": "Flagged for hate speech based on terms: litterers, chaos",
-       "translated_text": "Every time litterers appear in the subway, chaos prevails..."
+       "confidence": 0.90
      }
      ```
    - `"كان مترو الأنفاق..."` (translates to "The subway was good until litterers started harassing people..."):
      ```json
      {
        "label": "Hate Speech",
-       "confidence": 0.90,
-       "explanation": "Flagged for hate speech based on terms: litterers, harassing",
-       "translated_text": "The subway was good until litterers started harassing people..."
+       "confidence": 0.90
      }
      ```
 
@@ -454,7 +440,7 @@ Validation files (`training/data/*.csv` for English, `training/data_arabic/*.csv
    pip install --upgrade stanza
    pm2 restart toxictext-scanner
    ```
-   
+
 - **PM2 Issues**:
    Check logs:
    ```bash
