@@ -47,7 +47,7 @@ class ToxicTextScanner:
             if self.use_translator:
                 print("Initializing Arabic-to-English translator...")
                 try:
-                    self.translator = pipeline("translation", model="Helsinki-NLP/opus-mt-ar-en", device=-1)
+                    self.translator = pipeline("translation", model="Helsinki-NLP/opus-mt-ar-en", device=-1, clean_up_tokenization_spaces=True)
                     print("Translator initialized successfully.")
                 except Exception as e:
                     print(f"Failed to initialize translator: {e}. Arabic text will be classified as Neutral.")
