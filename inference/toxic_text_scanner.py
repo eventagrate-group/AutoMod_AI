@@ -10,8 +10,10 @@ from config import CONFIG
 from langdetect import detect, LangDetectException
 try:
     import stanza
+    from googletrans import Translator
 except ImportError:
     stanza = None
+    Translator = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
@@ -21,8 +23,6 @@ class ToxicTextScanner:
         try:
             self.vectorizer_en = joblib.load(CONFIG['vectorizer_path'])
             self.classifier_en = joblib.load(CONFIG['model_path'])
-            self.vectorizer_ar = joblib.load(CONFIG['vectorizer_path_ar'])
-            self.classifier_ar = joblib.load(CONFIG['model_path_ar'])
             self.lemmatizer = WordNetLemmatizer()
             try:
                 self.stop_words_en = set(stopwords.words('english'))
@@ -37,14 +37,21 @@ class ToxicTextScanner:
                 print("Initializing Stanza pipeline for Arabic on CPU...")
                 try:
                     stanza_dir = os.path.expanduser("~/stanza_resources")
-                    if not os.path.exists(stanza_dir):
-                        print(f"Stanza resources not found at {stanza_dir}. Downloading...")
-                        stanza.download('ar', processors='tokenize,lemma', dir=stanza_dir)
                     self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=False, dir=stanza_dir)
                     print("Stanza pipeline initialized successfully.")
                 except Exception as e:
                     print(f"Failed to initialize Stanza: {e}. Falling back to NLTK for Arabic.")
                     self.use_stanza = False
+            self.use_translator = True if Translator is not None else False
+            self.translator = None
+            if self.use_translator:
+                print("Initializing Arabic-to-English translator...")
+                try:
+                    self.translator = Translator()
+                    print("Translator initialized successfully.")
+                except Exception as e:
+                    print(f"Failed to initialize translator: {e}. Arabic text will be classified as Neutral.")
+                    self.use_translator = False
             self.class_names = ['Hate Speech', 'Offensive Language', 'Neutral']
         except Exception as e:
             print(f"Failed to initialize scanner: {str(e)}")
@@ -52,8 +59,8 @@ class ToxicTextScanner:
 
     def preprocess_text(self, text, lang='en'):
         text = str(text).lower()
-        text = re.sub(r'http\S+|www\S+', '', text)
-        text = re.sub(r'@\w+', '', text)
+        text = re.sub(r'http\S+|www\S+', '', text)  # Remove URLs
+        text = re.sub(r'@\w+', '', text)  # Remove mentions
         if lang == 'en':
             text = re.sub(r'[^a-zA-Z\s]', '', text)
             tokens = word_tokenize(text)
@@ -73,23 +80,38 @@ class ToxicTextScanner:
                 tokens = [t for t in tokens if t not in self.stop_words_ar]
         return ' '.join(tokens)
 
-    def classify_text(self, text):
+    def translate_ar_to_en(self, text):
+        if not self.use_translator or self.translator is None:
+            return None
+        try:
+            result = self.translator.translate(text, src='ar', dest='en')
+            return result.text
+        except Exception as e:
+            print(f"Translation failed: {e}")
+            return None
+
+    def scan(self, text):
         try:
             try:
                 lang = detect(text)
             except LangDetectException:
                 lang = 'en'
-            processed_text = self.preprocess_text(text, lang=lang)
             if lang == 'ar':
-                X = self.vectorizer_ar.transform([processed_text])
-                classifier = self.classifier_ar
+                translated_text = self.translate_ar_to_en(text)
+                if translated_text is None:
+                    return {
+                        "label": "Neutral",
+                        "confidence": 1.0
+                    }
+                text_to_classify = self.preprocess_text(translated_text, lang='en')
             else:
-                X = self.vectorizer_en.transform([processed_text])
-                classifier = self.classifier_en
+                text_to_classify = self.preprocess_text(text, lang='en')
+            X = self.vectorizer_en.transform([text_to_classify])
+            classifier = self.classifier_en
             prediction = classifier.predict(X)[0]
             probabilities = classifier.predict_proba(X)[0]
             confidence = float(np.max(probabilities))
-            feature_names = self.vectorizer_ar.get_feature_names_out() if lang == 'ar' else self.vectorizer_en.get_feature_names_out()
+            feature_names = self.vectorizer_en.get_feature_names_out()
             row = X.toarray()[0]
             top_idx = row.argsort()[-3:][::-1]
             influential_terms = [feature_names[i] for i in top_idx if row[i] > 0]
@@ -100,9 +122,10 @@ class ToxicTextScanner:
                     f"Flagged for {self.class_names[prediction].lower()} "
                     f"based on terms: {', '.join(influential_terms) or 'n/a'}"
                 ),
+                "translated_text": translated_text if lang == 'ar' else None
             }
         except Exception as e:
-            return {"error": f"Classification failed: {str(e)}"}
-
-    def scan(self, text):
-        return self.classify_text(text)
+            return {
+                "label": "Neutral",
+                "confidence": 1.0
+            }

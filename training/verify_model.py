@@ -34,7 +34,11 @@ class ToxicTextVerifier:
         if self.use_stanza and stanza is not None:
             print(f"Initializing Stanza pipeline for Arabic on {self.device}...")
             try:
-                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=os.path.expanduser("~/stanza_resources"))
+                stanza_dir = os.path.expanduser("~/stanza_resources")
+                if not os.path.exists(stanza_dir):
+                    print(f"Stanza resources not found at {stanza_dir}. Downloading...")
+                    stanza.download('ar', processors='tokenize,lemma', dir=stanza_dir)
+                self.nlp = stanza.Pipeline('ar', processors='tokenize,lemma', use_gpu=(self.device == 'cuda'), dir=stanza_dir)
             except Exception as e:
                 print(f"Failed to initialize Stanza: {e}. Falling back to NLTK.")
                 self.use_stanza = False
@@ -45,15 +49,22 @@ class ToxicTextVerifier:
             self.stop_words_en = set()
             self.stop_words_ar = set()
         # Load English resources
-        self.model_path_en = CONFIG['model_path']
-        self.vectorizer_path_en = CONFIG['vectorizer_path']
-        self.classifier_en = joblib.load(self.model_path_en)
-        self.vectorizer_en = joblib.load(self.vectorizer_path_en)
+        try:
+            self.model_path_en = CONFIG['model_path']
+            self.vectorizer_path_en = CONFIG['vectorizer_path']
+            self.classifier_en = joblib.load(self.model_path_en)
+            self.vectorizer_en = joblib.load(self.vectorizer_path_en)
+        except Exception as e:
+            print(f"Failed to load English resources: {e}")
+            raise
         # Load Arabic resources
-        self.model_path_ar = CONFIG['model_path_ar']
-        self.vectorizer_path_ar = CONFIG['vectorizer_path_ar']
-        self.classifier_ar = joblib.load(self.model_path_ar)
-        self.vectorizer_ar = joblib.load(self.vectorizer_path_ar)
+        try:
+            self.model_path_ar = CONFIG['model_path_ar']
+            self.vectorizer_path_ar = CONFIG['vectorizer_path_ar']
+            self.classifier_ar = joblib.load(self.model_path_ar)
+            self.vectorizer_ar = joblib.load(self.vectorizer_path_ar)
+        except Exception as e:
+            print(f"Failed to load Arabic resources: {e}. Arabic verification may fail.")
 
     def preprocess_text(self, texts, lang='en'):
         if not isinstance(texts, list):
@@ -69,9 +80,14 @@ class ToxicTextVerifier:
                 tokens = [self.lemmatizer.lemmatize(token) for token in tokens if token not in self.stop_words_en]
             else:
                 text = re.sub(r'[^\u0600-\u06FF\s]', '', text)
-                if self.use_stanza:
-                    doc = self.nlp(text)
-                    tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+                if self.use_stanza and hasattr(self, 'nlp') and self.nlp is not None:
+                    try:
+                        doc = self.nlp(text)
+                        tokens = [word.lemma for sent in doc.sentences for word in sent.words if word.lemma and word.lemma not in self.stop_words_ar]
+                    except Exception as e:
+                        print(f"Stanza processing failed for text: {text}. Error: {e}. Falling back to NLTK.")
+                        tokens = word_tokenize(text)
+                        tokens = [token for token in tokens if token not in self.stop_words_ar]
                 else:
                     tokens = word_tokenize(text)
                     tokens = [token for token in tokens if token not in self.stop_words_ar]
