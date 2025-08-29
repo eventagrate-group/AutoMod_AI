@@ -10,10 +10,10 @@ from config import CONFIG
 from langdetect import detect, LangDetectException
 try:
     import stanza
-    from transformers import pipeline
+    from googletrans import Translator
 except ImportError:
     stanza = None
-    pipeline = None
+    Translator = None
 
 # Set NLTK data path
 nltk.data.path.append(os.environ.get("NLTK_DATA", os.path.join(os.getcwd(), "nltk_data")))
@@ -42,12 +42,12 @@ class ToxicTextScanner:
                 except Exception as e:
                     print(f"Failed to initialize Stanza: {e}. Falling back to NLTK for Arabic.")
                     self.use_stanza = False
-            self.use_translator = True if pipeline is not None else False
+            self.use_translator = True if Translator is not None else False
             self.translator = None
             if self.use_translator:
                 print("Initializing Arabic-to-English translator...")
                 try:
-                    self.translator = pipeline("translation", model="Helsinki-NLP/opus-mt-ar-en", device=-1, clean_up_tokenization_spaces=True)
+                    self.translator = Translator()
                     print("Translator initialized successfully.")
                 except Exception as e:
                     print(f"Failed to initialize translator: {e}. Arabic text will be classified as Neutral.")
@@ -84,8 +84,8 @@ class ToxicTextScanner:
         if not self.use_translator or self.translator is None:
             return None
         try:
-            result = self.translator(text, max_length=512)
-            return result[0]['translation_text']
+            result = self.translator.translate(text, src='ar', dest='en')
+            return result.text
         except Exception as e:
             print(f"Translation failed: {e}")
             return None
