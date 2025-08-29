@@ -97,16 +97,15 @@ class ToxicTextScanner:
             except LangDetectException:
                 lang = 'en'
             if lang == 'ar':
-                preprocessed_ar = self.preprocess_text(text, lang='ar')
-                translated_text = self.translate_ar_to_en(preprocessed_ar)
+                translated_text = self.translate_ar_to_en(text)
                 if translated_text is None:
                     return {
                         "label": "Neutral",
                         "confidence": 1.0,
                         "explanation": "Arabic text could not be translated; defaulting to Neutral",
-                        "translated_text": null
+                        "translated_text": None
                     }
-                text_to_classify = translated_text
+                text_to_classify = self.preprocess_text(translated_text, lang='en')
             else:
                 text_to_classify = self.preprocess_text(text, lang='en')
             X = self.vectorizer_en.transform([text_to_classify])
