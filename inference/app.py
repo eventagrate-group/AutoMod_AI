@@ -22,7 +22,7 @@ def classify():
             return jsonify({"error": "Provide a non-empty 'text' string"}), 400
         # Normalize Unicode to handle encoding issues
         text = text.encode('utf-8').decode('utf-8')
-        result = scanner.classify(text)
+        result = scanner.scan(text)
         # If the scanner returned an error, pass it through
         if isinstance(result, dict) and "error" in result:
             return jsonify(result), 500
