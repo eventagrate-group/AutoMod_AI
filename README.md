@@ -140,9 +140,9 @@ AutoMod_AI/
    ```bash
    cd inference
    source venv/bin/activate
-   python3 -c "import os; import nltk; nltk.download('punkt', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('punkt_tab', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('stopwords', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('wordnet', download_dir=os.path.expanduser('~/nltk_data'))"
-   python3 -c "import stanza; stanza.download('ar', processors='tokenize,lemma', dir=os.path.expanduser('~/stanza_resources'))"
+   python3 -c "import os; import nltk; import stanza; nltk.download('punkt', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('punkt_tab', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('stopwords', download_dir=os.path.expanduser('~/nltk_data')); nltk.download('wordnet', download_dir=os.path.expanduser('~/nltk_data')); stanza.download('ar', processors='tokenize,lemma')"
    ```
+
 
 ## Training
 ### English Training
