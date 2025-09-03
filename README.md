@@ -4,7 +4,7 @@ AutoMod AI is a machine learning-based REST API for classifying short-form text 
 
 ## Project Structure
 ```
-toxictext-scanner/
+AutoMod_AI/
 ├── training/
 │   ├── data/
 │   │   ├── new_training_data.csv           # English training dataset
@@ -60,8 +60,8 @@ toxictext-scanner/
 ## Setup
 1. **Clone the Repository**:
    ```bash
-   git clone git@github.com:eventagrate-group/toxictext-scanner.git
-   cd toxictext-scanner
+   git clone git@github.com:eventagrate-group/AutoMod_AI.git
+   cd AutoMod_AI
    ```
 
 2. **Install System Dependencies**:
@@ -355,7 +355,7 @@ The Flask API uses `langdetect` to detect input language and applies the English
 
 4. **Configure Nginx**:
    ```bash
-   sudo nano /etc/nginx/sites-available/toxictext-scanner
+   sudo nano /etc/nginx/sites-available/AutoMod_AI
    ```
    Add:
    ```
@@ -371,7 +371,7 @@ The Flask API uses `langdetect` to detect input language and applies the English
    ```
    Enable and restart Nginx:
    ```bash
-   sudo ln -s /etc/nginx/sites-available/toxictext-scanner /etc/nginx/sites-enabled/
+   sudo ln -s /etc/nginx/sites-available/AutoMod_AI /etc/nginx/sites-enabled/
    sudo nginx -t
    sudo systemctl restart nginx
    ```
@@ -398,7 +398,7 @@ The Flask API uses `langdetect` to detect input language and applies the English
    ```
    Reload:
    ```bash
-   pm2 reload toxictext-scanner
+   pm2 reload AutoMod_AI
    ```
 
 ## Dataset Structure
@@ -431,22 +431,22 @@ Validation files (`training/data/*.csv` for English, `training/data_arabic/*.csv
    rm -rf ./nltk_data
    python3 -m nltk.downloader -d ./nltk_data stopwords wordnet punkt_tab
    python3 -c "import stanza; stanza.download('ar', processors='tokenize,lemma')"
-   pm2 restart toxictext-scanner
+   pm2 restart AutoMod_AI
    ```
 - **Stanza Warning**: A harmless `SyntaxWarning: invalid escape sequence '\T'` may appear in logs. Ignore or suppress by updating Stanza:
    ```bash
    cd inference
    source venv/bin/activate
    pip install --upgrade stanza
-   pm2 restart toxictext-scanner
+   pm2 restart AutoMod_AI
    ```
 
 - **PM2 Issues**:
    Check logs:
    ```bash
-   pm2 logs toxictext-scanner
+   pm2 logs AutoMod_AI
    ```
    Restart:
    ```bash
-   pm2 restart toxictext-scanner
+   pm2 restart AutoMod_AI
    ```
